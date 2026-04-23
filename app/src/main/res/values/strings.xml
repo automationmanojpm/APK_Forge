@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qa_screen_title">Build information</string>
+    <string name="qa_managed_config_title">Managed configuration</string>
+    <string name="qa_policy_actions_title">Policy &amp; intent checks</string>
+    <string name="qa_copy">Copy for ticket</string>
+    <string name="qa_share">Share</string>
+    <string name="qa_copied">Copied to clipboard</string>
+    <string name="qa_action_print">Print</string>
+    <string name="qa_action_save">Save to files</string>
+    <string name="qa_action_open_url">Open test URL</string>
+    <string name="qa_action_email">Email build info</string>
+    <string name="qa_action_app_info">App system settings</string>
+    <string name="qa_default_test_url">https://www.example.com</string>
+    <string name="qa_saved">Saved</string>
+    <string name="qa_save_failed">Could not save file</string>
+    <string name="qa_no_handler">No app can handle this action.</string>
+    <string name="qa_policy_blocked">Disabled by managed configuration (%1$s).</string>
+    <string name="qa_managed_config_empty_hint">If your MDM shows a policy but this screen stays empty, confirm the catalog / app record uses this exact application ID (not the Java package path):\n%1$s</string>
+
+    <string name="restriction_qa_banner_title">Banner message</string>
+    <string name="restriction_qa_banner_desc">Optional text shown at the top of the QA screen.</string>
+    <string name="restriction_qa_url_title">Test open URL</string>
+    <string name="restriction_qa_url_desc">URL for the Open test URL action. Leave empty to use the default example URL.</string>
+    <string name="restriction_qa_config_note_title">Config note (string)</string>
+    <string name="restriction_qa_config_note_desc">Optional line appended to the build information block (for QA labels / ticket IDs).</string>
+    <string name="restriction_qa_timeout_title">Timeout (integer)</string>
+    <string name="restriction_qa_timeout_desc">Seconds (integer in schema; some EMMs still send a string — the app parses both). Suggested range 5–300 for demos.</string>
+    <string name="restriction_qa_environment_title">Environment (choice)</string>
+    <string name="restriction_qa_environment_desc">Single-select value (stored as a string: prod, staging, or dev).</string>
+    <string name="restriction_qa_feature_set_title">Feature set (multi-select)</string>
+    <string name="restriction_qa_feature_set_desc">Multi-select checklist (stored as selected entryValues in the restrictions bundle).</string>
+    <string name="restriction_qa_disable_print_title">Disable print</string>
+    <string name="restriction_qa_disable_print_desc">Hides/disables the Print action for policy testing.</string>
+    <string name="restriction_qa_disable_save_title">Disable save to files</string>
+    <string name="restriction_qa_disable_save_desc">Disables the Save to files (SAF) action.</string>
+    <string name="restriction_qa_disable_browser_title">Disable browser intent</string>
+    <string name="restriction_qa_disable_browser_desc">Disables the Open test URL action.</string>
+    <string name="restriction_qa_disable_email_title">Disable email intent</string>
+    <string name="restriction_qa_disable_email_desc">Disables the Email build info action.</string>
+    <string name="restriction_qa_disable_share_title">Disable share</string>
+    <string name="restriction_qa_disable_share_desc">Disables the Share action.</string>
+    <string name="restriction_qa_disable_copy_title">Disable copy</string>
+    <string name="restriction_qa_disable_copy_desc">Disables the Copy for ticket action.</string>
+</resources>

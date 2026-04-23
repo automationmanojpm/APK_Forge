@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Managed configuration schema for EMM / Test DPC (RestrictionsManager).
+
+  Supported restrictionType values used here:
+  - string       — free text (EMM: text field)
+  - integer      — whole number (min/max depend on EMM; not all attrs are in the public aapt schema)
+  - bool         — on/off (EMM: checkbox)
+  - choice       — single value from list (EMM: radio / single-select; uses entries + entryValues)
+  - multi-select — multiple values (EMM: checkbox list; uses entries + entryValues)
+-->
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- string -->
+    <restriction
+        android:defaultValue=""
+        android:description="@string/restriction_qa_banner_desc"
+        android:key="qa_banner_message"
+        android:restrictionType="string"
+        android:title="@string/restriction_qa_banner_title" />
+
+    <!-- string -->
+    <restriction
+        android:defaultValue=""
+        android:description="@string/restriction_qa_url_desc"
+        android:key="qa_test_open_url"
+        android:restrictionType="string"
+        android:title="@string/restriction_qa_url_title" />
+
+    <!-- string (secondary line shown in build block when set) -->
+    <restriction
+        android:defaultValue=""
+        android:description="@string/restriction_qa_config_note_desc"
+        android:key="qa_config_note"
+        android:restrictionType="string"
+        android:title="@string/restriction_qa_config_note_title" />
+
+    <!-- integer -->
+    <restriction
+        android:defaultValue="30"
+        android:description="@string/restriction_qa_timeout_desc"
+        android:key="qa_timeout_seconds"
+        android:restrictionType="integer"
+        android:title="@string/restriction_qa_timeout_title" />
+
+    <!-- choice (radio / single-select) -->
+    <restriction
+        android:defaultValue="prod"
+        android:description="@string/restriction_qa_environment_desc"
+        android:entries="@array/restriction_qa_environment_labels"
+        android:entryValues="@array/restriction_qa_environment_values"
+        android:key="qa_environment"
+        android:restrictionType="choice"
+        android:title="@string/restriction_qa_environment_title" />
+
+    <!-- multi-select (checkbox list) -->
+    <restriction
+        android:description="@string/restriction_qa_feature_set_desc"
+        android:entries="@array/restriction_qa_feature_set_labels"
+        android:entryValues="@array/restriction_qa_feature_set_values"
+        android:key="qa_feature_set"
+        android:restrictionType="multi-select"
+        android:title="@string/restriction_qa_feature_set_title" />
+
+    <!-- bool (checkbox) -->
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_print_desc"
+        android:key="qa_disable_print"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_print_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_save_desc"
+        android:key="qa_disable_save"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_save_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_browser_desc"
+        android:key="qa_disable_browser"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_browser_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_email_desc"
+        android:key="qa_disable_email"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_email_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_share_desc"
+        android:key="qa_disable_share"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_share_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_copy_desc"
+        android:key="qa_disable_copy"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_copy_title" />
+</restrictions>

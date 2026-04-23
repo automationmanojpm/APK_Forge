@@ -1,0 +1,177 @@
+# Manual / API-driven release builds (APK or AAB) with per-run app.* Gradle properties.
+#
+# Secrets — default signing (repository → Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64   — base64 of the JKS/Keystore file
+#   ANDROID_KEYSTORE_PASSWORD — store password
+#   ANDROID_KEY_ALIAS         — key alias
+#   ANDROID_KEY_PASSWORD      — key password
+#
+# Secrets — custom signing (same shape; used when signing_mode == custom):
+#   CUSTOM_ANDROID_KEYSTORE_BASE64
+#   CUSTOM_ANDROID_KEYSTORE_PASSWORD
+#   CUSTOM_ANDROID_KEY_ALIAS
+#   CUSTOM_ANDROID_KEY_PASSWORD
+#
+# Trigger: Actions → "Build from dispatch" → Run workflow, or REST workflow_dispatch
+# (e.g. from a backend after Google Sign-In).
+
+name: Build from dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      application_id:
+        description: "app.applicationId (package name)"
+        required: true
+        type: string
+      display_name:
+        description: "app.displayName (launcher label)"
+        required: true
+        type: string
+      version_code:
+        description: "app.versionCode (integer)"
+        required: true
+        type: string
+      version_name:
+        description: "app.versionName (e.g. 1.0.0)"
+        required: true
+        type: string
+      artifact_type:
+        description: "Release artifact"
+        required: true
+        type: choice
+        options:
+          - apk
+          - aab
+      signing_mode:
+        description: "default = ANDROID_* secrets; custom = CUSTOM_ANDROID_* secrets"
+        required: true
+        type: choice
+        options:
+          - default
+          - custom
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Play Console / package name (informational)
+        run: |
+          {
+            echo "## Google Play and package name"
+            echo
+            echo "This workflow **cannot** check whether \`${{ inputs.application_id }}\` is free or already used on Google Play."
+            echo "Uniqueness is enforced when you create the app or upload in [Play Console](https://play.google.com/console)."
+            echo
+            echo "Two different apps cannot use the same \`applicationId\` on one device as separate user installs."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify signing secrets (default)
+        if: inputs.signing_mode == 'default'
+        env:
+          B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in B64 STORE_PW ALIAS KEY_PW; do
+            eval "v=\$$name"
+            if [ -z "$v" ]; then
+              echo "Missing default signing secret (need ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)"
+              exit 1
+            fi
+          done
+
+      - name: Verify signing secrets (custom)
+        if: inputs.signing_mode == 'custom'
+        env:
+          B64: ${{ secrets.CUSTOM_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.CUSTOM_ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.CUSTOM_ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.CUSTOM_ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in B64 STORE_PW ALIAS KEY_PW; do
+            eval "v=\$$name"
+            if [ -z "$v" ]; then
+              echo "Missing custom signing secret (need CUSTOM_ANDROID_KEYSTORE_BASE64, …_PASSWORD, …_ALIAS, …_KEY_PASSWORD)"
+              exit 1
+            fi
+          done
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Decode keystore and build
+        env:
+          SIGNING_MODE: ${{ inputs.signing_mode }}
+          ARTIFACT_TYPE: ${{ inputs.artifact_type }}
+          DEFAULT_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          DEFAULT_STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DEFAULT_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          DEFAULT_KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          CUSTOM_B64: ${{ secrets.CUSTOM_ANDROID_KEYSTORE_BASE64 }}
+          CUSTOM_STORE_PW: ${{ secrets.CUSTOM_ANDROID_KEYSTORE_PASSWORD }}
+          CUSTOM_ALIAS: ${{ secrets.CUSTOM_ANDROID_KEY_ALIAS }}
+          CUSTOM_KEY_PW: ${{ secrets.CUSTOM_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS_PATH="$RUNNER_TEMP/release.keystore"
+          if [ "$SIGNING_MODE" = "custom" ]; then
+            echo "$CUSTOM_B64" | base64 -d > "$KS_PATH"
+            export RELEASE_STORE_PASSWORD="$CUSTOM_STORE_PW"
+            export RELEASE_KEY_ALIAS="$CUSTOM_ALIAS"
+            export RELEASE_KEY_PASSWORD="$CUSTOM_KEY_PW"
+          else
+            echo "$DEFAULT_B64" | base64 -d > "$KS_PATH"
+            export RELEASE_STORE_PASSWORD="$DEFAULT_STORE_PW"
+            export RELEASE_KEY_ALIAS="$DEFAULT_ALIAS"
+            export RELEASE_KEY_PASSWORD="$DEFAULT_KEY_PW"
+          fi
+          export RELEASE_KEYSTORE_FILE="$KS_PATH"
+
+          GRADLE_PROPS=(
+            -P"app.applicationId=${{ inputs.application_id }}"
+            -P"app.displayName=${{ inputs.display_name }}"
+            -P"app.versionCode=${{ inputs.version_code }}"
+            -P"app.versionName=${{ inputs.version_name }}"
+          )
+
+          if [ "$ARTIFACT_TYPE" = "aab" ]; then
+            ./gradlew :app:bundleRelease --no-daemon "${GRADLE_PROPS[@]}"
+          else
+            ./gradlew :app:assembleRelease --no-daemon "${GRADLE_PROPS[@]}"
+          fi
+
+      - name: Upload APK
+        if: inputs.artifact_type == 'apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload AAB
+        if: inputs.artifact_type == 'aab'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

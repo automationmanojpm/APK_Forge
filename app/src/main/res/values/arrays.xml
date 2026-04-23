@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Managed config: choice (single-select / radio-style in many EMM UIs) -->
+    <string-array name="restriction_qa_environment_labels">
+        <item>Production</item>
+        <item>Staging</item>
+        <item>Development</item>
+    </string-array>
+    <string-array name="restriction_qa_environment_values">
+        <item>prod</item>
+        <item>staging</item>
+        <item>dev</item>
+    </string-array>
+
+    <!-- Managed config: multi-select (checkbox list in many EMM UIs) -->
+    <string-array name="restriction_qa_feature_set_labels">
+        <item>Diagnostics overlay</item>
+        <item>Verbose build block</item>
+        <item>Extra logging</item>
+    </string-array>
+    <string-array name="restriction_qa_feature_set_values">
+        <item>diag_overlay</item>
+        <item>verbose_build</item>
+        <item>extra_logging</item>
+    </string-array>
+
+</resources>
