@@ -16,6 +16,10 @@ Web UI + GET/PUT /api/config (gradle.properties app.*)
 
 .env (apk-forge/server/.env) — loaded into the process automatically on startup (dotenv).
 
+Optional split UI (e.g. static host + this API elsewhere):
+  APK_FORGE_API_BASE — public origin of this Node server (no trailing slash); injected into GET / as the fetch base.
+  APK_FORGE_CORS_ORIGINS — comma-separated browser origins allowed to call the API (required when UI is cross-origin).
+
 Minimal keys:
   PORT=3000
   ANDROID_PROJECT_ROOT=   (absolute path to repo root: contains gradlew, app/)

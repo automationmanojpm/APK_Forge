@@ -14,7 +14,8 @@ export async function handleApkForgeRequest(request: Request): Promise<Response>
   }
 
   if (request.method === "GET" && url.pathname === "/") {
-    return new Response(buildHtmlPage(), {
+    const apiBase = process.env.APK_FORGE_API_BASE?.trim() ?? "";
+    return new Response(buildHtmlPage({ apiBase }), {
       headers: {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",

@@ -1,6 +1,7 @@
 import { config as loadDotEnv } from "dotenv";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -69,6 +70,13 @@ function loadEnv(): { ANDROID_PROJECT_ROOT: string } {
   };
 }
 
+/** Comma-separated list from APK_FORGE_CORS_ORIGINS (for static UI on another origin). */
+function parseCorsOrigins(): string[] {
+  const raw = process.env.APK_FORGE_CORS_ORIGINS?.trim();
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -83,6 +91,22 @@ const env = loadEnv();
 const artifactsDir = path.join(process.cwd(), ".artifacts");
 
 const app = new Hono();
+
+const apkForgeCorsOrigins = parseCorsOrigins();
+if (apkForgeCorsOrigins.length > 0) {
+  app.use(
+    "*",
+    cors({
+      origin: (origin) => {
+        if (!origin) return undefined;
+        return apkForgeCorsOrigins.includes(origin) ? origin : undefined;
+      },
+      allowMethods: ["GET", "HEAD", "POST", "PUT", "OPTIONS"],
+      allowHeaders: ["Authorization", "Content-Type"],
+      maxAge: 86400,
+    }),
+  );
+}
 
 app.use("*", async (c, next) => {
   const t = Date.now();

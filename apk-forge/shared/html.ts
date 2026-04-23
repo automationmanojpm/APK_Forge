@@ -1,5 +1,19 @@
-/** APK Forge web UI (served by the Node server). */
-export function buildHtmlPage(): string {
+export type BuildHtmlPageOptions = {
+  /**
+   * Public origin of the API (no path, no trailing slash), e.g. https://builds.example.com.
+   * Empty string = same origin as the page (default when UI and API are served together).
+   */
+  apiBase?: string;
+};
+
+function normalizeApiBase(raw: string | undefined): string {
+  const t = (raw ?? "").trim().replace(/\/+$/, "");
+  return t;
+}
+
+/** APK Forge web UI (served by the Node server, or built for a separate static host). */
+export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
+  const apiBaseJson = JSON.stringify(normalizeApiBase(options?.apiBase));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -461,9 +475,10 @@ export function buildHtmlPage(): string {
       <h1>APK Forge</h1>
       <span class="hdr-badge">Local Gradle</span>
       <p class="hdr-note">
-        Builds run on this machine (<code>ANDROID_PROJECT_ROOT</code> in <code>apk-forge/server/.env</code>).
-        APK and AAB outputs use the same name pattern: <code>displayName-buildType-vversionName</code>.
-        Requests are logged in the server terminal.
+        <strong>Start build</strong> runs Gradle on this machine (<code>ANDROID_PROJECT_ROOT</code> in <code>apk-forge/server/.env</code>).
+        For builds without this host, use <strong>GitHub Actions</strong> in the same repo (<code>docs/BUILD.md</code>).
+        To host only this page elsewhere later, set <code>APK_FORGE_API_BASE</code> and <code>APK_FORGE_CORS_ORIGINS</code> in <code>apk-forge/server/.env</code> (<code>SERVER-DEPLOY.txt</code>).
+        APK and AAB names follow <code>displayName-buildType-vversionName</code>. HTTP requests are logged in the server terminal.
       </p>
     </div>
   </header>
@@ -664,6 +679,15 @@ export function buildHtmlPage(): string {
   </footer>
 
   <script>
+    var __API_BASE__ = ${apiBaseJson};
+    function apiUrl(path) {
+      var p = typeof path === "string" ? path : "";
+      if (!p) return p;
+      if (p.charAt(0) !== "/") p = "/" + p;
+      if (!__API_BASE__) return p;
+      return __API_BASE__ + p;
+    }
+
     const out = document.getElementById("out");
     const go = document.getElementById("go");
     const buildProgress = document.getElementById("build-progress");
@@ -821,7 +845,7 @@ export function buildHtmlPage(): string {
       signingSaveAllowed = false;
       signingSaveConfiguredOnServer = false;
       try {
-        var r = await fetch("/api/signing-auth/status", { headers: headers });
+        var r = await fetch(apiUrl("/api/signing-auth/status"), { headers: headers });
         var j = await r.json().catch(function () {
           return {};
         });
@@ -873,7 +897,7 @@ export function buildHtmlPage(): string {
     }
 
     async function fetchSigningConfigResponse() {
-      var r = await fetch("/api/signing-config");
+      var r = await fetch(apiUrl("/api/signing-config"));
       var j = await r.json().catch(function () { return {}; });
       return { r: r, j: j };
     }
@@ -929,7 +953,7 @@ export function buildHtmlPage(): string {
         if (signingSaveConfiguredOnServer && tok) {
           headers["Authorization"] = "Bearer " + tok;
         }
-        var r = await fetch("/api/signing-config", {
+        var r = await fetch(apiUrl("/api/signing-config"), {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(readSigningPayloadFromForm()),
@@ -1065,7 +1089,7 @@ export function buildHtmlPage(): string {
       setConfigMsg("", false);
       loadConfigBtn.disabled = true;
       try {
-        var r = await fetch("/api/config");
+        var r = await fetch(apiUrl("/api/config"));
         var j = await r.json().catch(function () { return {}; });
         if (!r.ok) {
           setConfigMsg(j.error || ("HTTP " + r.status), true);
@@ -1102,7 +1126,7 @@ export function buildHtmlPage(): string {
         if (signingSaveConfiguredOnServer && tok) {
           headers["Authorization"] = "Bearer " + tok;
         }
-        var r = await fetch("/api/config", {
+        var r = await fetch(apiUrl("/api/config"), {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(readAppFieldsPayload()),
@@ -1157,7 +1181,7 @@ export function buildHtmlPage(): string {
       }
       if (saveAuthDialogSubmit) saveAuthDialogSubmit.disabled = true;
       try {
-        var r = await fetch("/api/signing-auth", {
+        var r = await fetch(apiUrl("/api/signing-auth"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ email: email, password: password }),
@@ -1261,7 +1285,7 @@ export function buildHtmlPage(): string {
       if (!cid) return;
       var poll = function () {
         var url =
-          "/api/build-queue?client_build_id=" + encodeURIComponent(cid);
+          apiUrl("/api/build-queue?client_build_id=" + encodeURIComponent(cid));
         fetch(url)
           .then(function (r) {
             return r.json().catch(function () {
@@ -1392,7 +1416,7 @@ export function buildHtmlPage(): string {
       if (buildProgressPhase) buildProgressPhase.textContent = "Starting Gradle…";
       var progressTimer = startBuildProgressTimers();
       try {
-        var r = await fetch("/api/build", {
+        var r = await fetch(apiUrl("/api/build"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body),
@@ -1423,8 +1447,8 @@ export function buildHtmlPage(): string {
             var br = document.createElement("br");
             out.appendChild(br);
             var a = document.createElement("a");
-            var dlUrl = new URL(j.download_path, window.location.origin);
-            a.href = dlUrl.pathname + dlUrl.search;
+            var dlBase = __API_BASE__ || window.location.origin;
+            a.href = String(new URL(j.download_path, dlBase));
             a.textContent = "Download " + (j.artifact || "artifact");
             a.rel = "noopener noreferrer";
             a.style.color = "var(--accent)";

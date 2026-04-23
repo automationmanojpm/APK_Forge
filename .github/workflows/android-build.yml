@@ -4,6 +4,8 @@ name: Android build
 on:
   push:
     branches: [main, master]
+    tags:
+      - "v*"
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -16,6 +18,25 @@ on:
         options:
           - debug
           - release
+      release_outputs:
+        description: "When build variant is release: produce APK, AAB, or both"
+        required: true
+        type: choice
+        default: both
+        options:
+          - apk
+          - aab
+          - both
+      run_clean:
+        description: "Run ./gradlew clean before the main build tasks"
+        required: false
+        type: boolean
+        default: false
+      run_lint:
+        description: "Run Android lint for the same variant before assemble/bundle (slower)"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,24 +63,40 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # Match app compileSdk. Gradle/AGP will install build-tools if needed.
           packages: platforms;android-36
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Resolve build variant
-        id: variant
+      - name: Resolve workflow options
+        id: opts
         run: |
+          set -e
+          VARIANT="debug"
+          REL_OUT="both"
+          CLEAN="false"
+          LINT="false"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "v=${{ github.event.inputs.build_variant }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "v=debug" >> "$GITHUB_OUTPUT"
+            VARIANT="${{ github.event.inputs.build_variant }}"
+            REL_OUT="${{ github.event.inputs.release_outputs }}"
+            CLEAN="${{ github.event.inputs.run_clean }}"
+            LINT="${{ github.event.inputs.run_lint }}"
+          elif [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VARIANT="release"
+            REL_OUT="both"
           fi
+          echo "v=${VARIANT}" >> "$GITHUB_OUTPUT"
+          echo "release_outputs=${REL_OUT}" >> "$GITHUB_OUTPUT"
+          echo "clean=${CLEAN}" >> "$GITHUB_OUTPUT"
+          echo "lint=${LINT}" >> "$GITHUB_OUTPUT"
+
+      - name: Gradle clean (optional)
+        if: steps.opts.outputs.clean == 'true'
+        run: ./gradlew clean --no-daemon
 
       - name: Decode release keystore
         id: keystore
-        if: steps.variant.outputs.v == 'release'
+        if: steps.opts.outputs.v == 'release'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -71,33 +108,61 @@ jobs:
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$OUT"
           echo "path=$OUT" >> "$GITHUB_OUTPUT"
 
-      - name: Assemble debug
-        if: steps.variant.outputs.v != 'release'
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+      - name: Lint debug (optional)
+        if: github.event_name == 'workflow_dispatch' && steps.opts.outputs.lint == 'true' && steps.opts.outputs.v == 'debug'
+        run: ./gradlew :app:lintDebug --no-daemon
 
-      - name: Assemble & bundle release (APK + AAB)
-        if: steps.variant.outputs.v == 'release'
+      - name: Lint release (optional)
+        if: github.event_name == 'workflow_dispatch' && steps.opts.outputs.lint == 'true' && steps.opts.outputs.v == 'release'
         env:
           RELEASE_KEYSTORE_FILE: ${{ steps.keystore.outputs.path }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
+        run: ./gradlew :app:lintRelease --no-daemon
+
+      - name: Assemble debug
+        if: steps.opts.outputs.v != 'release'
+        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Assemble release APK
+        if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'apk' || steps.opts.outputs.release_outputs == 'both')
+        env:
+          RELEASE_KEYSTORE_FILE: ${{ steps.keystore.outputs.path }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+
+      - name: Bundle release AAB
+        if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'aab' || steps.opts.outputs.release_outputs == 'both')
+        env:
+          RELEASE_KEYSTORE_FILE: ${{ steps.keystore.outputs.path }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:bundleRelease --stacktrace --no-daemon
 
       - name: Upload debug APK
-        if: steps.variant.outputs.v != 'release'
+        if: steps.opts.outputs.v != 'release'
         uses: actions/upload-artifact@v4
         with:
           name: apk-debug-${{ github.run_number }}
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
-      - name: Upload release APK and AAB
-        if: steps.variant.outputs.v == 'release'
+      - name: Upload release APK
+        if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'apk' || steps.opts.outputs.release_outputs == 'both')
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk-aab-${{ github.run_number }}
-          path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+          name: release-apk-${{ github.run_number }}
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload release AAB
+        if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'aab' || steps.opts.outputs.release_outputs == 'both')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab-${{ github.run_number }}
+          path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
