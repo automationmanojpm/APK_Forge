@@ -1,0 +1,10 @@
+{
+  "name": "apk-forge",
+  "private": true,
+  "description": "APK Forge — VM web UI + shared handler + Node server",
+  "scripts": {
+    "postinstall": "npm install --prefix shared && npm install --prefix server",
+    "dev": "npm --prefix server run dev",
+    "typecheck": "npm --prefix server run typecheck"
+  }
+}

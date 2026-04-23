@@ -1,0 +1,6 @@
+{
+  "name": "@apk-forge/shared",
+  "private": true,
+  "type": "module",
+  "dependencies": {}
+}

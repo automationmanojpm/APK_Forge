@@ -1,0 +1,20 @@
+# Run from the repository root (same folder as app/, gradle.properties):
+#   docker compose -f apk-forge/docker-compose.yml --env-file apk-forge/server/.env up --build
+#
+# Create apk-forge/server/.env first (copy from apk-forge/server/env.example).
+# The default image does not include JDK or Android SDK: POST /api/build will fail
+# inside this container unless you extend the Dockerfile. Use host Node + Gradle for builds.
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: apk-forge/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - server/.env
+    environment:
+      ANDROID_PROJECT_ROOT: /android
+    volumes:
+      - ..:/android:rw

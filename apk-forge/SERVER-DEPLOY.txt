@@ -1,0 +1,54 @@
+================================================================================
+APK FORGE — VM ONLY (Node in apk-forge/server)
+================================================================================
+Web UI + GET/PUT /api/config (gradle.properties app.*)
+    PUT uses the same Bearer token as signing when SIGNING_EDITOR_* is set
+  + GET/PUT /api/signing-config (apk-forge/server/.env signing keys; applied without restart)
+    PUT requires Authorization: Bearer <token> from POST /api/signing-auth { email, password }
+    matching SIGNING_EDITOR_EMAIL / SIGNING_EDITOR_PASSWORD in server .env (optional APK_FORGE_SESSION_SECRET)
+  + GET /api/signing-auth/status (optional Bearer — signed_in, signing_save_enabled)
+  + POST /api/build (Gradle;
+  body.build_variant: release | debug — debug skips RELEASE_* signing;
+  body.client_build_id required — unique per request, e.g. crypto.randomUUID() for queue UI)
+  + GET /api/build-queue?client_build_id=… (your_status: building | queued, your_place, total_in_queue;
+  omit query for aggregate pending_builds only)
+  Web UI: Check in Play Store opens play.google.com for the current applicationId (no server probe).
+
+.env (apk-forge/server/.env) — loaded into the process automatically on startup (dotenv).
+
+Minimal keys:
+  PORT=3000
+  ANDROID_PROJECT_ROOT=   (absolute path to repo root: contains gradlew, app/)
+Each HTTP request is logged to the server console (method path status ms).
+
+Signing (same env var names as the old GitHub Actions workflow):
+  default: ANDROID_KEYSTORE_BASE64 + ANDROID_KEYSTORE_PASSWORD + ANDROID_KEY_ALIAS + ANDROID_KEY_PASSWORD
+           OR RELEASE_KEYSTORE_FILE + RELEASE_STORE_PASSWORD + RELEASE_KEY_ALIAS + RELEASE_KEY_PASSWORD
+           (RELEASE_KEYSTORE_FILE: absolute; or repo-relative; or .android/… under user home)
+  custom:  CUSTOM_ANDROID_KEYSTORE_BASE64 + CUSTOM_ANDROID_KEYSTORE_PASSWORD + CUSTOM_ANDROID_KEY_ALIAS + CUSTOM_ANDROID_KEY_PASSWORD
+
+Web UI: edits the six default credential fields (RELEASE_* three + ANDROID_* three) and optional CUSTOM_* when Custom is selected. Put RELEASE_KEYSTORE_FILE (repo-relative or absolute) and ANDROID_KEYSTORE_BASE64 in .env by hand; Save does not clear keys omitted from the form. Saving one default panel only updates those fields; the other default group in .env is left unchanged.
+
+The bundled Dockerfile is Node-only (no JDK / Android SDK). Run builds on a host or VM
+where Java, Android SDK, and Gradle wrapper already work (e.g. same machine as Android Studio),
+then point ANDROID_PROJECT_ROOT at that checkout.
+
+Windows dev:
+  cd apk-forge\server
+  copy env.example .env
+  (edit .env — set ANDROID_PROJECT_ROOT to this repo root)
+  npm install
+  npm run dev
+  → http://localhost:3000
+
+Linux VM (Docker image without Android toolchain is UI-only unless you extend the image):
+  docker compose -f apk-forge/docker-compose.yml up --build -d
+
+Linux VM (no Docker):
+  cd apk-forge && npm install && cd server && npm run start
+  (use systemd + reverse proxy / TLS as you prefer; see deploy/Caddyfile)
+
+Built APK/AAB files are copied under apk-forge/server/.artifacts/ using the same
+filenames Gradle writes (e.g. displayName-release-vversionName.apk), served at GET /api/artifacts/<name>.
+
+================================================================================

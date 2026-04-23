@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -25,7 +27,7 @@ fun sanitizeApkBaseName(raw: String): String =
 
 val apkBaseName = sanitizeApkBaseName(appDisplayName)
 
-/** CI / headless signing via env (see .github/workflows/build-from-dispatch.yml). */
+/** Headless release signing via env (APK Forge / local server or any CI). */
 val releaseKeystoreFile = System.getenv("RELEASE_KEYSTORE_FILE")?.trim().orEmpty()
 val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")?.trim().orEmpty()
 val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")?.trim().orEmpty()
@@ -101,6 +103,40 @@ androidComponents {
         variant.outputs.forEach { output ->
             val fileName = "$apkBaseName-${variant.buildType}-v$appVersionName.apk"
             (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set(fileName)
+        }
+    }
+}
+
+/**
+ * Match APK naming: `{displayName}-{buildType}-v{versionName}.aab`
+ * Rename at end of `bundleRelease` / `bundleDebug` (after IDE listing tasks that expect `app-* .aab`).
+ */
+afterEvaluate {
+    listOf("Release", "Debug").forEach { bt ->
+        val buildType = bt.lowercase()
+        tasks.named("bundle${bt}").configure {
+            doLast {
+                val dir =
+                    layout.buildDirectory.dir("outputs/bundle/$buildType").get().asFile
+                if (!dir.isDirectory) {
+                    return@doLast
+                }
+                val desired = File(dir, "$apkBaseName-${buildType}-v$appVersionName.aab")
+                val candidates =
+                    dir.listFiles()?.filter { f ->
+                        f.isFile && f.name.endsWith(".aab", ignoreCase = true)
+                    }.orEmpty()
+                val src = candidates.maxByOrNull { it.lastModified() } ?: return@doLast
+                if (src.name == desired.name) {
+                    return@doLast
+                }
+                if (desired.exists()) {
+                    desired.delete()
+                }
+                check(src.renameTo(desired)) {
+                    "Could not rename ${src.name} → ${desired.name}"
+                }
+            }
         }
     }
 }

@@ -1,0 +1,18 @@
+# Production TLS in front of the Node app (Linux VM).
+# 1. Point DNS A/AAAA for your hostname to this server.
+# 2. Set SITE_ADDRESS to that hostname (DNS must point here).
+# 3. Run Caddy (e.g. second service or host install) with:
+#      docker run -d --network host -v ./Caddyfile:/etc/caddy/Caddyfile:ro -v caddy_data:/data caddy:2-alpine
+#    or add a `caddy` service to docker-compose sharing a Docker network with `app`.
+#
+# Replace the placeholder host below, or use env var expansion when Caddy is started with -e.
+
+# Example (uncomment and set your domain):
+# forge.example.com {
+#   reverse_proxy host.docker.internal:3000
+# }
+#
+# When Caddy runs in the same compose stack as `app`:
+# {$SITE_ADDRESS} {
+#   reverse_proxy app:3000
+# }

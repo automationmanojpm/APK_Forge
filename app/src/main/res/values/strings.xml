@@ -42,4 +42,6 @@
     <string name="restriction_qa_disable_share_desc">Disables the Share action.</string>
     <string name="restriction_qa_disable_copy_title">Disable copy</string>
     <string name="restriction_qa_disable_copy_desc">Disables the Copy for ticket action.</string>
+
+    <string name="qa_footer_attribution">⚙️ Created &amp; Powered by the Automation Team 🤖 &amp; AI</string>
 </resources>
