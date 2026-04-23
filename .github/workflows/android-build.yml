@@ -37,6 +37,36 @@ on:
         required: false
         type: boolean
         default: false
+      gradle_app_application_id:
+        description: "Optional -Papp.applicationId=… (overrides gradle.properties)"
+        required: false
+        type: string
+        default: ""
+      gradle_app_display_name:
+        description: "Optional -Papp.displayName=…"
+        required: false
+        type: string
+        default: ""
+      gradle_app_version_code:
+        description: "Optional -Papp.versionCode=… (integer)"
+        required: false
+        type: string
+        default: ""
+      gradle_app_version_name:
+        description: "Optional -Papp.versionName=… (overrides tag-derived name when set)"
+        required: false
+        type: string
+        default: ""
+      sync_version_name_from_git_tag:
+        description: "Manual runs only: if ref is a tag like v1.2.3, set app.versionName to 1.2.3 (ignored when gradle_app_version_name is set)"
+        required: false
+        type: boolean
+        default: false
+      gradle_extra_properties:
+        description: "Optional extra lines: key=value (one per line). Keys: letters, digits, _ . only. Applied last (wins over lines above)."
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -90,9 +120,56 @@ jobs:
           echo "clean=${CLEAN}" >> "$GITHUB_OUTPUT"
           echo "lint=${LINT}" >> "$GITHUB_OUTPUT"
 
+      - name: Write CI Gradle -P flags (gradle.properties overrides)
+        run: |
+          set -e
+          ARGS_FILE="ci-gradle-args.bash"
+          echo 'CI_GRADLE_ARGS=(' > "$ARGS_FILE"
+          append_p() {
+            local k="$1" v="$2"
+            [ -z "$v" ] && return
+            printf ' %q' "-P${k}=${v}" >> "$ARGS_FILE"
+            echo >> "$ARGS_FILE"
+          }
+          EVENT="${{ github.event_name }}"
+          REF_NAME="${{ github.ref_name }}"
+          # Tag push: align app.versionName with the tag (v1.2.3 -> 1.2.3)
+          if [ "$EVENT" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            append_p app.versionName "${REF_NAME#v}"
+          fi
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            G_APP_ID="${{ github.event.inputs.gradle_app_application_id }}"
+            G_DISP="${{ github.event.inputs.gradle_app_display_name }}"
+            G_VCODE="${{ github.event.inputs.gradle_app_version_code }}"
+            G_VNAME="${{ github.event.inputs.gradle_app_version_name }}"
+            G_SYNC="${{ github.event.inputs.sync_version_name_from_git_tag }}"
+            G_EXTRA="${{ github.event.inputs.gradle_extra_properties }}"
+            append_p app.applicationId "$G_APP_ID"
+            append_p app.displayName "$G_DISP"
+            append_p app.versionCode "$G_VCODE"
+            if [ -n "$G_VNAME" ]; then
+              append_p app.versionName "$G_VNAME"
+            elif [ "$G_SYNC" = "true" ] && [[ "$REF_NAME" == v* ]]; then
+              append_p app.versionName "${REF_NAME#v}"
+            fi
+            while IFS= read -r line || [ -n "$line" ]; do
+              line="${line//$'\r'/}"
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+              [[ -z "${line// }" ]] && continue
+              if [[ "$line" =~ ^([a-zA-Z0-9_.]+)=(.*)$ ]]; then
+                append_p "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+              else
+                echo "::warning::Skipping gradle_extra_properties line (use key=value): $line"
+              fi
+            done <<< "$G_EXTRA"
+          fi
+          echo ')' >> "$ARGS_FILE"
+
       - name: Gradle clean (optional)
         if: steps.opts.outputs.clean == 'true'
-        run: ./gradlew clean --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" clean --no-daemon
 
       - name: Decode release keystore
         id: keystore
@@ -110,7 +187,9 @@ jobs:
 
       - name: Lint debug (optional)
         if: github.event_name == 'workflow_dispatch' && steps.opts.outputs.lint == 'true' && steps.opts.outputs.v == 'debug'
-        run: ./gradlew :app:lintDebug --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" :app:lintDebug --no-daemon
 
       - name: Lint release (optional)
         if: github.event_name == 'workflow_dispatch' && steps.opts.outputs.lint == 'true' && steps.opts.outputs.v == 'release'
@@ -119,11 +198,15 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:lintRelease --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" :app:lintRelease --no-daemon
 
       - name: Assemble debug
         if: steps.opts.outputs.v != 'release'
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" :app:assembleDebug --stacktrace --no-daemon
 
       - name: Assemble release APK
         if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'apk' || steps.opts.outputs.release_outputs == 'both')
@@ -132,7 +215,9 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" :app:assembleRelease --stacktrace --no-daemon
 
       - name: Bundle release AAB
         if: steps.opts.outputs.v == 'release' && (steps.opts.outputs.release_outputs == 'aab' || steps.opts.outputs.release_outputs == 'both')
@@ -141,7 +226,9 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:bundleRelease --stacktrace --no-daemon
+        run: |
+          source ./ci-gradle-args.bash
+          ./gradlew "${CI_GRADLE_ARGS[@]}" :app:bundleRelease --stacktrace --no-daemon
 
       - name: Upload debug APK
         if: steps.opts.outputs.v != 'release'

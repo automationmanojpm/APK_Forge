@@ -16,6 +16,11 @@
 | **release_outputs** | Only for **release**: `apk`, `aab`, or `both`. |
 | **run_clean** | If enabled, runs `./gradlew clean` before lint/build. |
 | **run_lint** | If enabled, runs `:app:lintDebug` or `:app:lintRelease` before assemble/bundle (slower). |
+| **gradle_app_application_id**, **gradle_app_display_name**, **gradle_app_version_code**, **gradle_app_version_name** | Optional `-P` overrides for the matching keys in root `gradle.properties` (`app.applicationId`, `app.displayName`, `app.versionCode`, `app.versionName`; see `app/build.gradle.kts`). |
+| **sync_version_name_from_git_tag** | Manual runs only: if the selected ref is a tag like `v1.2.3`, set `app.versionName` to `1.2.3`. Ignored when **gradle_app_version_name** is set. |
+| **gradle_extra_properties** | Extra `key=value` lines (one per line). Keys: letters, digits, `_`, `.` only. Applied **after** the fields above, so duplicates **win** here. |
+
+**Tag push (`v*`):** the workflow always passes `-Papp.versionName=…` using the tag with the leading **v** stripped (e.g. tag `v2.4.0` → version name `2.4.0`). Branch / PR builds use only what is committed in `gradle.properties` unless you use a manual run with overrides.
 
 ## Tag-based release builds
 
