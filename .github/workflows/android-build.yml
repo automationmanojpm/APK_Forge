@@ -75,18 +75,29 @@ jobs:
         if: steps.variant.outputs.v != 'release'
         run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Assemble release
+      - name: Assemble & bundle release (APK + AAB)
         if: steps.variant.outputs.v == 'release'
         env:
           RELEASE_KEYSTORE_FILE: ${{ steps.keystore.outputs.path }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
 
-      - name: Upload APK
+      - name: Upload debug APK
+        if: steps.variant.outputs.v != 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: apk-${{ steps.variant.outputs.v }}-${{ github.run_number }}
+          name: apk-debug-${{ github.run_number }}
           path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK and AAB
+        if: steps.variant.outputs.v == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-aab-${{ github.run_number }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
           if-no-files-found: error

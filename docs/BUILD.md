@@ -3,7 +3,7 @@
 ## GitHub Actions (default when you push)
 
 - **Pull requests and pushes** to `main` / `master` run **`:app:assembleDebug`** only (no signing secrets).
-- **Manual release build:** Actions → *Android build* → *Run workflow* → choose **release**.
+- **Manual release build:** Actions → *Android build* → *Run workflow* → choose **release**. That run produces a **signed release APK and AAB** (AAB is what you typically upload to Play Console).
 
 ### Release signing secrets (repository secrets)
 
@@ -20,7 +20,12 @@ These map to the same env vars `app/build.gradle.kts` already uses for **headles
 
 ### Artifacts
 
-Each run uploads the built **APK** under *Actions → workflow run → Artifacts*.
+| Trigger | Artifact name (pattern) | Contents |
+|--------|-------------------------|----------|
+| Push / PR (debug) | `apk-debug-*` | Debug APK |
+| Manual **release** | `release-apk-aab-*` | Signed release **APK** + **AAB** |
+
+Download from *Actions → workflow run → Artifacts*.
 
 ## VM backup (APK Forge)
 
