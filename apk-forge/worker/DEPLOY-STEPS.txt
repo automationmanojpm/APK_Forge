@@ -1,0 +1,203 @@
+================================================================================
+APK FORGE — STEP-BY-STEP (GitHub Actions + Cloudflare Worker)
+================================================================================
+Prerequisites: GitHub account, Cloudflare account (free), Google account,
+Node.js 18+ and npm installed on your PC.
+
+You will do three areas in order:
+  (1) GitHub Actions secrets — so the Android workflow can sign release builds
+  (2) GitHub token for the Worker — so the Worker can start that workflow
+  (3) Google OAuth Web client — so "Sign in with Google" works
+  (4) Cloudflare Worker — configure vars, upload token secret, deploy
+
+--------------------------------------------------------------------------------
+PART 1 — ANDROID SIGNING SECRETS (GITHUB REPOSITORY)
+--------------------------------------------------------------------------------
+These are used by the workflow ".github/workflows/build-from-dispatch.yml"
+when signing_mode is "default" (or "custom" uses the CUSTOM_* list).
+
+1.1  Open your repo on GitHub: Settings → Secrets and variables → Actions.
+
+1.2  Create a release keystore if you do not have one (Android Studio:
+     Build → Generate Signed App Bundle / APK, or keytool). You need:
+     - keystore file (.jks or .keystore)
+     - store password, key alias, key password
+
+1.3  Encode the keystore file as a single base64 string (no line breaks).
+
+     PowerShell (Windows), replace the path:
+       [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\release.jks"))
+
+     Copy the entire output string.
+
+1.4  Add these repository secrets (Actions secrets):
+
+     Name: ANDROID_KEYSTORE_BASE64
+     Value: (paste base64 from step 1.3)
+
+     Name: ANDROID_KEYSTORE_PASSWORD
+     Value: (store password)
+
+     Name: ANDROID_KEY_ALIAS
+     Value: (key alias)
+
+     Name: ANDROID_KEY_PASSWORD
+     Value: (key password)
+
+1.5  Optional — for "custom" signing in the UI, add the same four names with
+     CUSTOM_ prefix:
+       CUSTOM_ANDROID_KEYSTORE_BASE64
+       CUSTOM_ANDROID_KEYSTORE_PASSWORD
+       CUSTOM_ANDROID_KEY_ALIAS
+       CUSTOM_ANDROID_KEY_PASSWORD
+
+--------------------------------------------------------------------------------
+PART 2 — PROVE THE WORKFLOW IN GITHUB (RECOMMENDED)
+--------------------------------------------------------------------------------
+2.1  Actions → "Build from dispatch" → Run workflow.
+
+2.2  Fill application_id, display_name, version_code, version_name,
+     artifact_type (apk or aab), signing_mode (default or custom).
+
+2.3  Wait for green run; open the job and download the artifact (APK or AAB).
+
+If this fails, fix Actions/logs before deploying the Worker (the Worker only
+starts the same workflow).
+
+--------------------------------------------------------------------------------
+PART 3 — GITHUB TOKEN FOR THE CLOUDFLARE WORKER
+--------------------------------------------------------------------------------
+The Worker calls GitHub's API to dispatch the workflow. It needs a token that
+is NOT stored in git — only in Cloudflare as a Worker secret.
+
+3.1  GitHub → Settings (your profile) → Developer settings → Personal access
+     tokens. Prefer "Fine-grained token".
+
+3.2  Create token:
+     - Name: e.g. APK Forge worker
+     - Expiration: your choice
+     - Resource owner: your user or org
+     - Repository access: "Only select repositories" → pick THIS repo
+     - Permissions → Repository permissions:
+         Contents: Read
+         Actions: Read and write   (needed to dispatch workflows)
+
+3.3  Generate and copy the token once. You will paste it in Part 5
+     (wrangler secret put GITHUB_TOKEN). Do not commit it to the repo.
+
+--------------------------------------------------------------------------------
+PART 4 — GOOGLE OAUTH (WEB CLIENT ID)
+--------------------------------------------------------------------------------
+4.1  Open Google Cloud Console: https://console.cloud.google.com/
+
+4.2  Create or select a project.
+
+4.3  APIs & Services → OAuth consent screen:
+     - User type: External (or Internal for Workspace-only)
+     - Fill app name, support email, developer contact; add scopes if prompted;
+       add test users if app is in Testing mode (your Gmail must be a test
+       user until you publish the app, if required).
+
+4.4  APIs & Services → Credentials → Create credentials → OAuth client ID
+     - Application type: Web application
+     - Name: e.g. APK Forge
+
+4.5  Authorized JavaScript origins — add these (you will add the Worker URL
+     after first deploy in Part 6; for local dev add):
+       http://localhost:8787
+
+     After you know your Worker URL (e.g. https://apk-forge.youraccount.workers.dev),
+     edit this client and ADD:
+       https://apk-forge.youraccount.workers.dev
+     (Use your real workers.dev URL.)
+
+4.6  If you will host a separate UI on GitHub Pages, also add:
+       https://YOUR_GITHUB_USERNAME.github.io
+     (and set ALLOWED_ORIGINS in wrangler.toml — see Part 5.)
+
+4.7  Create; copy the "Client ID" (ends in .apps.googleusercontent.com).
+
+--------------------------------------------------------------------------------
+PART 5 — CONFIGURE wrangler.toml (IN THIS REPO)
+--------------------------------------------------------------------------------
+5.1  Edit file: apk-forge/worker/wrangler.toml
+
+5.2  Under [vars], set:
+     GITHUB_OWNER = your GitHub username OR organization name (exact)
+     GITHUB_REPO = repository name only (no slashes), e.g. testApp
+     WORKFLOW_FILE = build-from-dispatch.yml   (keep unless you renamed it)
+     DEFAULT_GIT_REF = main   (or your default branch name)
+     GOOGLE_CLIENT_ID = paste the Web client ID from Part 4.7
+
+5.3  Optional: if using GitHub Pages UI calling this Worker, uncomment and set:
+     ALLOWED_ORIGINS = "https://YOURNAME.github.io"
+     Multiple origins: comma-separated, no spaces unless inside URL is OK.
+
+5.4  Save the file. Commit and push if you want the config in git (do NOT put
+     GITHUB_TOKEN in this file).
+
+--------------------------------------------------------------------------------
+PART 6 — INSTALL DEPENDENCIES AND LOG IN TO CLOUDFLARE
+--------------------------------------------------------------------------------
+6.1  On your PC, open a terminal in the repo folder.
+
+6.2  cd apk-forge/worker
+
+6.3  npm install
+
+6.4  npx wrangler login
+     (Browser opens; authorize Cloudflare.)
+
+--------------------------------------------------------------------------------
+PART 7 — SET WORKER SECRET AND DEPLOY
+--------------------------------------------------------------------------------
+7.1  Still in apk-forge/worker:
+
+       npx wrangler secret put GITHUB_TOKEN
+
+     When prompted, paste the token from Part 3.3.
+
+7.2  Deploy:
+
+       npm run deploy
+
+7.3  Note the URL printed at the end (workers.dev).
+
+7.4  Go back to Google Cloud Console → your Web client → Authorized JavaScript
+     origins → ADD the exact Worker URL (https://...workers.dev).
+
+--------------------------------------------------------------------------------
+PART 8 — USE APK FORGE
+--------------------------------------------------------------------------------
+8.1  Open the Worker URL in a browser.
+
+8.2  Click Sign in with Google (use a test user if consent screen is Testing).
+
+8.3  Enter applicationId, displayName, versionCode, versionName; choose APK or
+     AAB; choose default or custom signing (must match secrets you configured).
+
+8.4  Click Start build.
+
+8.5  On GitHub → Actions, open the new "Build from dispatch" run; when done,
+     download the artifact.
+
+--------------------------------------------------------------------------------
+PART 9 — TROUBLESHOOTING (SHORT)
+--------------------------------------------------------------------------------
+- Google button / "origin_mismatch": Authorized JavaScript origins must include
+  the exact page origin (Worker URL or localhost:8787 for wrangler dev).
+
+- "GitHub API 401/403": PAT missing, wrong repo, or token lacks Actions write.
+
+- "GitHub API 404": Wrong GITHUB_OWNER/GITHUB_REPO or wrong WORKFLOW_FILE name.
+
+- Workflow fails on signing: Check ANDROID_* (or CUSTOM_*) Action secrets and
+  that base64 decodes to a valid keystore.
+
+- CORS from GitHub Pages: set ALLOWED_ORIGINS in wrangler.toml and redeploy;
+  fetch must use the full Worker URL for /api/dispatch.
+
+Local testing: copy env.example to .dev.vars, put GITHUB_TOKEN=... there,
+then: npx wrangler dev — open http://localhost:8787
+
+================================================================================

@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# APK Forge (Cloudflare Worker)
+apk-forge/worker/node_modules/
+apk-forge/worker/.wrangler/

@@ -1,0 +1,21 @@
+# APK Forge — deploy: cd apk-forge/worker && npm install && npx wrangler secret put GITHUB_TOKEN && npm run deploy
+#
+# Required secret: GITHUB_TOKEN (fine-grained PAT: Contents read, Actions write on this repo)
+#
+# Replace [vars] with your GitHub repo and Google Web client ID (OAuth 2.0 Client IDs → Web application).
+#
+# Optional: ALLOWED_ORIGINS — comma-separated list if you host a separate UI (e.g. GitHub Pages).
+# Example: ALLOWED_ORIGINS = "https://yourname.github.io"
+# The worker's own URL is always allowed for the built-in UI.
+
+name = "apk-forge"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[vars]
+GITHUB_OWNER = "YOUR_GITHUB_USER_OR_ORG"
+GITHUB_REPO = "YOUR_REPO_NAME"
+WORKFLOW_FILE = "build-from-dispatch.yml"
+DEFAULT_GIT_REF = "main"
+GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com"
+# ALLOWED_ORIGINS = "https://yourname.github.io"
