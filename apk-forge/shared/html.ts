@@ -475,10 +475,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       <h1>APK Forge</h1>
       <span class="hdr-badge">Local Gradle</span>
       <p class="hdr-note">
-        <strong>Start build</strong> runs Gradle on this machine (<code>ANDROID_PROJECT_ROOT</code> in <code>apk-forge/server/.env</code>).
-        For builds without this host, use <strong>GitHub Actions</strong> in the same repo (<code>docs/BUILD.md</code>).
-        To host only this page elsewhere later, set <code>APK_FORGE_API_BASE</code> and <code>APK_FORGE_CORS_ORIGINS</code> in <code>apk-forge/server/.env</code> (<code>SERVER-DEPLOY.txt</code>).
-        APK and AAB names follow <code>displayName-buildType-vversionName</code>. HTTP requests are logged in the server terminal.
+        <strong>APK Forge</strong> is a small web tool to forge APKs and AABs for testing, or to upload to <strong>Google Play</strong> private / managed app distribution.
       </p>
     </div>
   </header>

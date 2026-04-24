@@ -21,6 +21,11 @@ val appDisplayName = (project.findProperty("app.displayName") as String?)!!.trim
 val appVersionCode = parseAppVersionCode(project.findProperty("app.versionCode") as String?)
 val appVersionName = (project.findProperty("app.versionName") as String?)!!.trim()
 
+/** APK Forge UI URL for QA "Open test URL" (gradle.properties `app.apk_forge_endpoint`). */
+val apkForgeEndpoint =
+    (project.findProperty("app.apk_forge_endpoint") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+        ?: "http://localhost:3000/apk-forge"
+
 /** Safe base name for APK files (from app.displayName). */
 fun sanitizeApkBaseName(raw: String): String =
     raw.trim().replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "app" }
@@ -61,6 +66,7 @@ android {
         versionName = appVersionName
 
         resValue("string", "app_name", appDisplayName)
+        resValue("string", "qa_default_test_url", apkForgeEndpoint)
 
         val buildTime = System.currentTimeMillis().toString()
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")

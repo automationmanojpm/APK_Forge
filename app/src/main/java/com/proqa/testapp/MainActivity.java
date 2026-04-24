@@ -1,7 +1,5 @@
 package com.proqa.testapp;
 
-import com.proqa.testapp.BuildConfig;
-
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -316,8 +314,8 @@ public class MainActivity extends AppCompatActivity {
             showPolicyBlocked(AppRestrictions.KEY_QA_DISABLE_BROWSER);
             return;
         }
-        String url = AppRestrictions.getString(restrictions, AppRestrictions.KEY_QA_TEST_OPEN_URL);
-        if (url.isEmpty()) {
+        String url = AppRestrictions.getString(restrictions, AppRestrictions.KEY_QA_TEST_OPEN_URL).trim();
+        if (url.isEmpty() || url.equalsIgnoreCase("APK_Forge")) {
             url = getString(R.string.qa_default_test_url);
         }
         if (!url.startsWith("http://") && !url.startsWith("https://")) {

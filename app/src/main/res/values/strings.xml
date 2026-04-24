@@ -11,7 +11,6 @@
     <string name="qa_action_open_url">Open test URL</string>
     <string name="qa_action_email">Email build info</string>
     <string name="qa_action_app_info">App system settings</string>
-    <string name="qa_default_test_url">https://www.example.com</string>
     <string name="qa_saved">Saved</string>
     <string name="qa_save_failed">Could not save file</string>
     <string name="qa_no_handler">No app can handle this action.</string>
@@ -21,7 +20,7 @@
     <string name="restriction_qa_banner_title">Banner message</string>
     <string name="restriction_qa_banner_desc">Optional text shown at the top of the QA screen.</string>
     <string name="restriction_qa_url_title">Test open URL</string>
-    <string name="restriction_qa_url_desc">URL for the Open test URL action. Leave empty to use the default example URL.</string>
+    <string name="restriction_qa_url_desc">URL for the Open test URL action. Leave empty to use the APK Forge endpoint from the build (gradle.properties app.apk_forge_endpoint). You may also set this to the sentinel APK_Forge to use that same endpoint explicitly.</string>
     <string name="restriction_qa_config_note_title">Config note (string)</string>
     <string name="restriction_qa_config_note_desc">Optional line appended to the build information block (for QA labels / ticket IDs).</string>
     <string name="restriction_qa_timeout_title">Timeout (integer)</string>
