@@ -64,4 +64,8 @@ Chrome may block direct .apk downloads over plain HTTP (“Insecure download blo
 The UI uses fetch+blob downloads to reduce that; lasting fix is HTTPS (see deploy/Caddyfile).
 Users can still click Keep on the browser prompt when needed.
 
+Optional build branding: POST /api/build-icon (raw PNG/WebP ≤2MB) → icon_token;
+include icon_token on POST /api/build. The server temporarily replaces launcher
+assets under app/src/main/res for that Gradle run, then restores the originals.
+
 ================================================================================

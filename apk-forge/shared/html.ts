@@ -516,6 +516,21 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       align-items: center;
       gap: 0.65rem 0.85rem;
     }
+    .app-icon-preview-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.65rem;
+    }
+    .app-icon-preview {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
     .application-id-row .application-id-input {
       flex: 1 1 12rem;
       min-width: 10rem;
@@ -715,6 +730,15 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
           <label class="f" for="version_name">versionName</label>
           <input class="f" id="version_name" autocomplete="off" placeholder="1.0.0" />
         </div>
+        <div class="field">
+          <label class="f" for="app_icon_file">App icon &amp; logo (optional)</label>
+          <input class="f" id="app_icon_file" type="file" accept="image/png,image/webp,.png,.webp" />
+          <p class="note" style="margin-top:0.4rem;margin-bottom:0">Square <strong>PNG</strong> ≥512×512 recommended (WebP also accepted). Used for launcher icon and in-app logo. Max 2&nbsp;MB. Adaptive icons are replaced with bitmaps so MDMs (e.g. AnyMDM) can show the logo.</p>
+          <div id="app-icon-preview-wrap" class="app-icon-preview-wrap hidden">
+            <img id="app_icon_preview" class="app-icon-preview" alt="Icon preview" />
+            <button type="button" class="btn" id="app_icon_clear">Clear icon</button>
+          </div>
+        </div>
         <div class="row-actions">
           <button type="button" class="btn" id="load-config">Load from gradle.properties</button>
           <button type="button" class="btn btn-with-lock" id="save-config" aria-label="Save to gradle.properties (locked)">
@@ -818,6 +842,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     const saveConfigBtn = document.getElementById("save-config");
     const configMsg = document.getElementById("config-msg");
     const buildVariant = document.getElementById("build_variant");
+    const appIconFile = document.getElementById("app_icon_file");
+    const appIconPreview = document.getElementById("app_icon_preview");
+    const appIconPreviewWrap = document.getElementById("app-icon-preview-wrap");
+    const appIconClear = document.getElementById("app_icon_clear");
+    var pendingIconFile = /** @type {File | null} */ (null);
     const signingModeDefault = document.getElementById("signing_mode_default");
     const signingModeCustom = document.getElementById("signing_mode_custom");
     const signingCustomPanel = document.getElementById("signing-custom-panel");
@@ -1513,6 +1542,69 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       syncPlayStoreLink();
     }
 
+    function clearAppIconSelection() {
+      pendingIconFile = null;
+      if (appIconFile) appIconFile.value = "";
+      if (appIconPreview) {
+        appIconPreview.removeAttribute("src");
+      }
+      if (appIconPreviewWrap) appIconPreviewWrap.classList.add("hidden");
+    }
+
+    function syncAppIconPreview(file) {
+      if (!file || !appIconPreview || !appIconPreviewWrap) {
+        clearAppIconSelection();
+        return;
+      }
+      pendingIconFile = file;
+      var url = URL.createObjectURL(file);
+      appIconPreview.onload = function () {
+        URL.revokeObjectURL(url);
+      };
+      appIconPreview.src = url;
+      appIconPreviewWrap.classList.remove("hidden");
+    }
+
+    if (appIconFile) {
+      appIconFile.addEventListener("change", function () {
+        var f = appIconFile.files && appIconFile.files[0] ? appIconFile.files[0] : null;
+        if (!f) {
+          clearAppIconSelection();
+          return;
+        }
+        if (f.size > 2 * 1024 * 1024) {
+          setConfigMsg("Icon must be 2 MB or smaller.", true);
+          clearAppIconSelection();
+          return;
+        }
+        syncAppIconPreview(f);
+      });
+    }
+    if (appIconClear) {
+      appIconClear.addEventListener("click", function () {
+        clearAppIconSelection();
+      });
+    }
+
+    async function uploadAppIconIfNeeded() {
+      if (!pendingIconFile) return "";
+      var buf = await pendingIconFile.arrayBuffer();
+      var ct = pendingIconFile.type || "application/octet-stream";
+      var r = await fetch(apiUrl("/api/build-icon"), {
+        method: "POST",
+        headers: { "content-type": ct },
+        body: buf,
+      });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        throw new Error(j.error || ("Icon upload failed (HTTP " + r.status + ")"));
+      }
+      if (!j.icon_token || typeof j.icon_token !== "string") {
+        throw new Error("Icon upload did not return icon_token");
+      }
+      return j.icon_token;
+    }
+
     go.addEventListener("click", async function () {
       setError("");
       setOk("");
@@ -1533,6 +1625,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       if (buildProgressPhase) buildProgressPhase.textContent = "Starting Gradle…";
       var progressTimer = startBuildProgressTimers();
       try {
+        if (pendingIconFile) {
+          if (buildProgressPhase) buildProgressPhase.textContent = "Uploading icon…";
+          body.icon_token = await uploadAppIconIfNeeded();
+        }
+        if (buildProgressPhase) buildProgressPhase.textContent = "Starting Gradle…";
         var r = await fetch(apiUrl("/api/build"), {
           method: "POST",
           headers: { "content-type": "application/json" },

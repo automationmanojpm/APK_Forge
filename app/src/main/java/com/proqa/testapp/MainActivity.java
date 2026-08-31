@@ -14,6 +14,7 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Choreographer;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -28,6 +29,8 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -89,6 +92,12 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton printButton;
     private MaterialButton saveButton;
     private MaterialButton openUrlButton;
+    private TextInputLayout testUrlLayout;
+    private TextInputEditText testUrlInput;
+    private MaterialButton cameraButton;
+    private MaterialButton exploreFilesButton;
+    private TextView qaProfileLabel;
+    private boolean testUrlPrefillDone;
     private MaterialButton emailButton;
     private MaterialButton appInfoButton;
 
@@ -113,6 +122,11 @@ public class MainActivity extends AppCompatActivity {
         printButton = findViewById(R.id.qaPrintButton);
         saveButton = findViewById(R.id.qaSaveButton);
         openUrlButton = findViewById(R.id.qaOpenUrlButton);
+        testUrlLayout = findViewById(R.id.qaTestUrlLayout);
+        testUrlInput = findViewById(R.id.qaTestUrlInput);
+        cameraButton = findViewById(R.id.qaCameraButton);
+        exploreFilesButton = findViewById(R.id.qaExploreFilesButton);
+        qaProfileLabel = findViewById(R.id.qaProfileLabel);
         emailButton = findViewById(R.id.qaEmailButton);
         appInfoButton = findViewById(R.id.qaAppInfoButton);
         qaEidValue = findViewById(R.id.qaEidValue);
@@ -121,6 +135,9 @@ public class MainActivity extends AppCompatActivity {
 
         displayName = getString(R.string.app_name);
         appTitle.setText(displayName);
+        if (qaProfileLabel != null) {
+            qaProfileLabel.setText(ProfileHelper.profileLabelLine(this));
+        }
 
         long buildTimeMillis = Long.parseLong(BuildConfig.BUILD_TIME);
         SimpleDateFormat istFormat = new SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.US);
@@ -135,6 +152,17 @@ public class MainActivity extends AppCompatActivity {
         printButton.setOnClickListener(v -> printBuildInfo());
         saveButton.setOnClickListener(v -> saveBuildInfoToFile());
         openUrlButton.setOnClickListener(v -> openTestUrl());
+        if (testUrlInput != null) {
+            testUrlInput.setOnEditorActionListener((v, actionId, event) -> {
+                if (actionId == EditorInfo.IME_ACTION_GO) {
+                    openTestUrl();
+                    return true;
+                }
+                return false;
+            });
+        }
+        cameraButton.setOnClickListener(v -> openInAppCamera());
+        exploreFilesButton.setOnClickListener(v -> openFileExplorer());
         emailButton.setOnClickListener(v -> emailBuildInfo());
         appInfoButton.setOnClickListener(v -> openAppSystemSettings());
         fetchEidButton.setOnClickListener(v -> onFetchEidClicked());
@@ -241,7 +269,36 @@ public class MainActivity extends AppCompatActivity {
         printButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_PRINT));
         saveButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_SAVE));
         openUrlButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_BROWSER));
+        if (testUrlLayout != null) {
+            testUrlLayout.setEnabled(openUrlButton.isEnabled());
+        }
+        if (testUrlInput != null) {
+            testUrlInput.setEnabled(openUrlButton.isEnabled());
+            maybePrefillTestUrl();
+        }
+        cameraButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_CAMERA));
+        exploreFilesButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_FILES));
         emailButton.setEnabled(!AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_EMAIL));
+        if (qaProfileLabel != null) {
+            qaProfileLabel.setText(ProfileHelper.profileLabelLine(this));
+        }
+    }
+
+    /** Prefill once from MDM / build default; user edits stay in the field. */
+    private void maybePrefillTestUrl() {
+        if (testUrlPrefillDone || testUrlInput == null) {
+            return;
+        }
+        testUrlPrefillDone = true;
+        CharSequence existing = testUrlInput.getText();
+        if (existing != null && existing.toString().trim().length() > 0) {
+            return;
+        }
+        String fromMdm = AppRestrictions.getString(restrictions, AppRestrictions.KEY_QA_TEST_OPEN_URL).trim();
+        if (!fromMdm.isEmpty() && !fromMdm.equalsIgnoreCase("APK_Forge")) {
+            testUrlInput.setText(fromMdm);
+        }
+        // Placeholder remains google.com when empty.
     }
 
     @NonNull
@@ -430,15 +487,36 @@ public class MainActivity extends AppCompatActivity {
             showPolicyBlocked(AppRestrictions.KEY_QA_DISABLE_BROWSER);
             return;
         }
-        String url = AppRestrictions.getString(restrictions, AppRestrictions.KEY_QA_TEST_OPEN_URL).trim();
-        if (url.isEmpty() || url.equalsIgnoreCase("APK_Forge")) {
-            url = getString(R.string.qa_default_test_url);
+        String url = "";
+        if (testUrlInput != null && testUrlInput.getText() != null) {
+            url = testUrlInput.getText().toString().trim();
+        }
+        if (url.isEmpty()) {
+            // Use placeholder default when the field is blank.
+            url = getString(R.string.qa_test_url_hint);
         }
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "https://" + url;
         }
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        startActivityOrWarn(intent);
+        Intent intent = new Intent(this, InAppBrowserActivity.class);
+        intent.putExtra(InAppBrowserActivity.EXTRA_URL, url);
+        startActivity(intent);
+    }
+
+    private void openInAppCamera() {
+        if (AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_CAMERA)) {
+            showPolicyBlocked(AppRestrictions.KEY_QA_DISABLE_CAMERA);
+            return;
+        }
+        startActivity(new Intent(this, InAppCameraActivity.class));
+    }
+
+    private void openFileExplorer() {
+        if (AppRestrictions.getBool(restrictions, AppRestrictions.KEY_QA_DISABLE_FILES)) {
+            showPolicyBlocked(AppRestrictions.KEY_QA_DISABLE_FILES);
+            return;
+        }
+        startActivity(new Intent(this, FileExplorerActivity.class));
     }
 
     private void emailBuildInfo() {

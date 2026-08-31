@@ -32,6 +32,8 @@ public final class AppRestrictions {
     public static final String KEY_QA_DISABLE_PRINT = "qa_disable_print";
     public static final String KEY_QA_DISABLE_SAVE = "qa_disable_save";
     public static final String KEY_QA_DISABLE_BROWSER = "qa_disable_browser";
+    public static final String KEY_QA_DISABLE_CAMERA = "qa_disable_camera";
+    public static final String KEY_QA_DISABLE_FILES = "qa_disable_files";
     public static final String KEY_QA_DISABLE_EMAIL = "qa_disable_email";
     public static final String KEY_QA_DISABLE_SHARE = "qa_disable_share";
     public static final String KEY_QA_DISABLE_COPY = "qa_disable_copy";

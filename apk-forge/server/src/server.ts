@@ -33,6 +33,7 @@ import {
   verifySigningSaveToken,
 } from "./signingAuth.js";
 import { readReleaseMeta } from "../../shared/releaseMeta.js";
+import { storeBuildIcon } from "./buildIcon.js";
 
 const serverDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = path.join(serverDir, ".env");
@@ -127,6 +128,10 @@ app.get("/api/version", async () => {
 
 app.get("/api/config", async () => {
   const cfg = await readAppGradleProperties(env.ANDROID_PROJECT_ROOT);
+  const publicUrl = (process.env.APK_FORGE_PUBLIC_URL || "").trim();
+  if (!cfg.apk_forge_endpoint && publicUrl) {
+    cfg.apk_forge_endpoint = publicUrl;
+  }
   return json(cfg);
 });
 
@@ -278,6 +283,7 @@ app.put("/api/config", async (c) => {
       display_name: validated.display_name,
       version_code: validated.version_code,
       version_name: validated.version_name,
+      apk_forge_endpoint: validated.apk_forge_endpoint,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -292,6 +298,37 @@ app.put("/api/config", async (c) => {
 app.get("/api/build-queue", (c) => {
   const clientId = c.req.query("client_build_id") ?? undefined;
   return json(getQueueSnapshot(clientId));
+});
+
+app.post("/api/build-icon", async (c) => {
+  let body: ArrayBuffer;
+  try {
+    body = await c.req.arrayBuffer();
+  } catch {
+    return json({ error: "Could not read upload body" }, 400);
+  }
+  const contentType = (c.req.header("content-type") || "").toLowerCase();
+  if (
+    contentType &&
+    !contentType.includes("octet-stream") &&
+    !contentType.includes("png") &&
+    !contentType.includes("webp") &&
+    !contentType.includes("image/")
+  ) {
+    return json(
+      { error: "Send raw PNG/WebP bytes (Content-Type: image/png or image/webp)" },
+      400,
+    );
+  }
+  const stored = await storeBuildIcon(Buffer.from(body));
+  if (!stored.ok) {
+    return json({ error: stored.error }, 400);
+  }
+  return json({
+    ok: true,
+    icon_token: stored.icon_token,
+    message: "Icon stored; pass icon_token on POST /api/build (expires in 1 hour).",
+  });
 });
 
 app.post("/api/build", async (c) => {

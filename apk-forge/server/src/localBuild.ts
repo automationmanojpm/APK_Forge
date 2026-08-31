@@ -7,6 +7,14 @@ import {
   applySigningToProcessEnv,
   readSigningEnvFile,
 } from "./signingEnv.js";
+import {
+  clearForgeOverlay,
+  consumeIconToken,
+  discardIconFile,
+  materializeForgeOverlay,
+  restoreForgeIconBackups,
+  scrubResBackupDebris,
+} from "./buildIcon.js";
 
 function stripBase64Whitespace(b64: string): string {
   return b64.replace(/\s/g, "");
@@ -161,6 +169,13 @@ function runGradle(
     `-Papp.versionCode=${inputs.version_code}`,
     `-Papp.versionName=${inputs.version_name}`,
   ];
+  const endpoint =
+    inputs.apk_forge_endpoint?.trim() ||
+    process.env.APK_FORGE_PUBLIC_URL?.trim() ||
+    "";
+  if (endpoint) {
+    props.push(`-Papp.apk_forge_endpoint=${endpoint}`);
+  }
   const isWin = process.platform === "win32";
   const gradleArgs = [task, "--no-daemon", "--console=plain", ...props];
 
@@ -306,6 +321,7 @@ export async function runLocalBuild(options: {
   }
 
   let cleanup: (() => Promise<void>) | undefined;
+  let iconTempPath: string | undefined;
   try {
     if (signingEnvPath) {
       const cfg = await readSigningEnvFile(signingEnvPath, signingDefaultsPath);
@@ -316,6 +332,23 @@ export async function runLocalBuild(options: {
       ? await prepareSigning(inputs.signing_mode, root)
       : { childEnv: { ...process.env }, cleanup: async () => {} };
     cleanup = signing.cleanup;
+
+    await clearForgeOverlay(root);
+    await scrubResBackupDebris(root);
+    const iconToken = inputs.icon_token?.trim();
+    if (iconToken) {
+      const icon = await consumeIconToken(iconToken);
+      if (!icon) {
+        return {
+          ok: false,
+          error:
+            "icon_token is missing or expired; upload the icon again before building",
+        };
+      }
+      iconTempPath = icon.filePath;
+      await materializeForgeOverlay(root, icon);
+    }
+
     await fs.mkdir(options.artifactsDir, { recursive: true });
     await runGradle(root, signing.childEnv, inputs);
     const built = await pickBuiltArtifact(
@@ -343,6 +376,12 @@ export async function runLocalBuild(options: {
   } finally {
     if (cleanup) {
       await cleanup();
+    }
+    await restoreForgeIconBackups().catch(() => {});
+    await scrubResBackupDebris(root).catch(() => {});
+    await clearForgeOverlay(root).catch(() => {});
+    if (iconTempPath) {
+      await discardIconFile(iconTempPath);
     }
   }
 }

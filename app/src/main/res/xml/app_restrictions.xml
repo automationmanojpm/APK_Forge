@@ -86,6 +86,20 @@
 
     <restriction
         android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_camera_desc"
+        android:key="qa_disable_camera"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_camera_title" />
+
+    <restriction
+        android:defaultValue="false"
+        android:description="@string/restriction_qa_disable_files_desc"
+        android:key="qa_disable_files"
+        android:restrictionType="bool"
+        android:title="@string/restriction_qa_disable_files_title" />
+
+    <restriction
+        android:defaultValue="false"
         android:description="@string/restriction_qa_disable_email_desc"
         android:key="qa_disable_email"
         android:restrictionType="bool"

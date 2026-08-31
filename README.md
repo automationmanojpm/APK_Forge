@@ -25,7 +25,7 @@ Edit root [`gradle.properties`](gradle.properties), then sync again:
 | `app.displayName` | Launcher and in-app title |
 | `app.versionCode` | Integer version code |
 | `app.versionName` | User-visible version string |
-| `app.apk_forge_endpoint` | Default URL for **Open test URL** when MDM leaves it empty |
+| `app.apk_forge_endpoint` | Default URL for **Open test URL** when MDM leaves it empty (use server IP/hostname, not `localhost`, for device builds) |
 
 Source package stays `com.proqa.testapp`; only change that if you intentionally rename the template.
 
@@ -101,11 +101,16 @@ Full deploy notes (Docker, Linux VM, signing env keys): [`apk-forge/SERVER-DEPLO
 
 Local **Release** (Studio or APK Forge) signs with the committed QA keystore in [`app/signing/`](app/signing/) when no `RELEASE_*` env is set. Override via `apk-forge/server/.env` or CI secrets — not for Play Store.
 
+**Custom icon / logo:** In APK Forge, under App fields, optionally upload a square **PNG or WebP** (≥512×512 recommended, max 2 MB). It becomes the launcher icon and the in-app logo for that build only.
+
 ---
 
 ## App features (QA screen)
 
 - Build / device info (copy, share, print, save, email)
+- App logo (default template or forged custom icon)
 - Managed configuration (EMM restrictions)
-- Policy action toggles (print / save / browser / email / share / copy)
+- Policy action toggles (print / save / browser / camera / files / email / share / copy)
+- In-app browser (Open test URL) and in-app camera (Capture photo)
+- **Explore files** — in-app file explorer (folder list, navigate, open/share). Storage is **profile-scoped**: install in the personal profile to browse personal files, or in the work profile to browse work files. No cross-profile access. Managed config `qa_disable_files` disables the action.
 - **Device EID (eUICC)** — **Fetch EID** tries the device APIs first; if Android blocks third-party access, it uses managed config `qa_device_eid` when the EMM sets it (e.g. from Android Management API `hardwareInfo.euiccChipInfo`)

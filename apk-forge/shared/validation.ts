@@ -11,6 +11,7 @@ export function validateAppProperties(raw: unknown):
       display_name: string;
       version_code: string;
       version_name: string;
+      apk_forge_endpoint: string;
     }
   | { ok: false; error: string } {
   if (typeof raw !== "object" || raw === null) {
@@ -26,6 +27,8 @@ export function validateAppProperties(raw: unknown):
     typeof o.version_code === "string" ? o.version_code.trim() : "";
   const version_name =
     typeof o.version_name === "string" ? o.version_name.trim() : "";
+  const apk_forge_endpoint =
+    typeof o.apk_forge_endpoint === "string" ? o.apk_forge_endpoint.trim() : "";
 
   if (!APPLICATION_ID_RE.test(application_id)) {
     return {
@@ -43,6 +46,20 @@ export function validateAppProperties(raw: unknown):
   if (!version_name || version_name.length > 40) {
     return { ok: false, error: "version_name must be 1–40 characters" };
   }
+  if (apk_forge_endpoint) {
+    if (apk_forge_endpoint.length > 300) {
+      return { ok: false, error: "apk_forge_endpoint is too long" };
+    }
+    if (
+      !apk_forge_endpoint.startsWith("http://") &&
+      !apk_forge_endpoint.startsWith("https://")
+    ) {
+      return {
+        ok: false,
+        error: "apk_forge_endpoint must start with http:// or https://",
+      };
+    }
+  }
 
   return {
     ok: true,
@@ -50,6 +67,7 @@ export function validateAppProperties(raw: unknown):
     display_name,
     version_code,
     version_name,
+    apk_forge_endpoint,
   };
 }
 
@@ -98,6 +116,14 @@ export function validateBody(raw: unknown):
     };
   }
 
+  const icon_token_raw =
+    typeof o.icon_token === "string" ? o.icon_token.trim() : "";
+  if (icon_token_raw) {
+    if (!/^[a-f0-9]{32}$/.test(icon_token_raw)) {
+      return { ok: false, error: "icon_token is invalid" };
+    }
+  }
+
   return {
     ok: true,
     inputs: {
@@ -105,9 +131,11 @@ export function validateBody(raw: unknown):
       display_name: app.display_name,
       version_code: app.version_code,
       version_name: app.version_name,
+      apk_forge_endpoint: app.apk_forge_endpoint,
       artifact_type,
       signing_mode,
       build_variant,
+      ...(icon_token_raw ? { icon_token: icon_token_raw } : {}),
     },
     client_build_id,
   };

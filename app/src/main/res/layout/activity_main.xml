@@ -50,6 +50,15 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
+                    <ImageView
+                        android:id="@+id/qaAppLogo"
+                        android:layout_width="72dp"
+                        android:layout_height="72dp"
+                        android:layout_marginBottom="12dp"
+                        android:contentDescription="@string/qa_app_logo_cd"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_launcher_foreground" />
+
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -65,6 +74,15 @@
                         android:textAppearance="?attr/textAppearanceTitleMedium"
                         android:textColor="?attr/colorPrimary"
                         tools:text="testApp" />
+
+                    <TextView
+                        android:id="@+id/qaProfileLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        tools:text="Profile: Personal" />
 
                     <TextView
                         android:id="@+id/qaBuildDetails"
@@ -237,6 +255,31 @@
                         android:layout_marginTop="8dp"
                         android:text="@string/qa_action_save" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="@string/qa_test_url_label"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/qaTestUrlLayout"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="@string/qa_test_url_hint">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/qaTestUrlInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textUri"
+                            android:imeOptions="actionGo"
+                            android:maxLines="3" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/qaOpenUrlButton"
                         style="@style/Widget.Material3.Button.OutlinedButton"
@@ -244,6 +287,22 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="@string/qa_action_open_url" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/qaCameraButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/qa_action_camera" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/qaExploreFilesButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/qa_action_explore_files" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/qaEmailButton"

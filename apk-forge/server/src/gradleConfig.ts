@@ -6,6 +6,7 @@ export type AppConfigResponse = {
   display_name: string;
   version_code: string;
   version_name: string;
+  apk_forge_endpoint: string;
 };
 
 function parsePropsFile(content: string): Map<string, string> {
@@ -39,6 +40,7 @@ export async function readAppGradleProperties(
       display_name: "",
       version_code: "",
       version_name: "",
+      apk_forge_endpoint: "",
     };
   }
   const map = parsePropsFile(content);
@@ -47,6 +49,7 @@ export async function readAppGradleProperties(
     display_name: map.get("app.displayName") ?? "",
     version_code: map.get("app.versionCode") ?? "",
     version_name: map.get("app.versionName") ?? "",
+    apk_forge_endpoint: map.get("app.apk_forge_endpoint") ?? "",
   };
 }
 
@@ -89,6 +92,10 @@ export async function writeAppGradleProperties(
     ["app.versionCode", data.version_code],
     ["app.versionName", data.version_name],
   ];
+  // Only update endpoint when explicitly provided (UI no longer edits this field).
+  if (data.apk_forge_endpoint.trim()) {
+    updates.push(["app.apk_forge_endpoint", data.apk_forge_endpoint.trim()]);
+  }
   let out = lines;
   for (const [key, value] of updates) {
     out = upsertPropertyLine(out, key, value);

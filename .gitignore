@@ -18,3 +18,6 @@ local.properties
 apk-forge/node_modules/
 apk-forge/shared/node_modules/
 apk-forge/server/node_modules/
+
+# Per-build launcher/logo overlay (APK Forge)
+app/src/forgeOverlay/res/
