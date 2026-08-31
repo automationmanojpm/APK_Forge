@@ -2,6 +2,7 @@
  * Shared HTTP handler for APK Forge (Node server on your VM).
  */
 import { buildHtmlPage } from "./html.js";
+import { readReleaseMeta } from "./releaseMeta.js";
 
 /** Canonical browser path for the APK Forge UI (root redirects here). */
 const APK_FORGE_UI_PATH = "/apk-forge";
@@ -58,12 +59,21 @@ export async function handleApkForgeRequest(request: Request): Promise<Response>
     }
     if (method === "GET") {
       const apiBase = process.env.APK_FORGE_API_BASE?.trim() ?? "";
-      return new Response(buildHtmlPage({ apiBase }), {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-store",
+      const meta = await readReleaseMeta();
+      return new Response(
+        buildHtmlPage({
+          apiBase,
+          version: meta.version,
+          latestChanges: meta.latestChanges,
+          changelog: meta.changelog,
+        }),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store",
+          },
         },
-      });
+      );
     }
   }
 

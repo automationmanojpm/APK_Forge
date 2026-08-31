@@ -55,4 +55,9 @@ Linux VM (no Docker):
 Built APK/AAB files are copied under apk-forge/server/.artifacts/ using the same
 filenames Gradle writes (e.g. displayName-release-vversionName.apk), served at GET /api/artifacts/<name>.
 
+Tool version / changelist (shown on the web UI header + expandable panel):
+  apk-forge/VERSION
+  apk-forge/CHANGELOG.md
+  GET /api/version
+
 ================================================================================

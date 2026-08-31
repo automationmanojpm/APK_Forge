@@ -4,6 +4,12 @@ export type BuildHtmlPageOptions = {
    * Empty string = same origin as the page (default when UI and API are served together).
    */
   apiBase?: string;
+  /** APK Forge tool version (from apk-forge/VERSION). */
+  version?: string;
+  /** Latest changelist bullets (from apk-forge/CHANGELOG.md). */
+  latestChanges?: string[];
+  /** Full changelog markdown text for the expandable panel. */
+  changelog?: string;
 };
 
 function normalizeApiBase(raw: string | undefined): string {
@@ -11,15 +17,45 @@ function normalizeApiBase(raw: string | undefined): string {
   return t;
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderChangelogBody(changelog: string, latestChanges: string[]): string {
+  const raw = changelog.trim();
+  if (raw) {
+    return escapeHtml(raw);
+  }
+  if (latestChanges.length === 0) {
+    return "No changelist entries yet.";
+  }
+  return latestChanges.map((c) => `- ${escapeHtml(c)}`).join("\n");
+}
+
 /** APK Forge web UI (served by the Node server, or built for a separate static host). */
 export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
   const apiBaseJson = JSON.stringify(normalizeApiBase(options?.apiBase));
+  const version = (options?.version ?? "0.0.0").trim() || "0.0.0";
+  const latestChanges = options?.latestChanges ?? [];
+  const changelog = options?.changelog ?? "";
+  const versionEsc = escapeHtml(version);
+  const latestListHtml =
+    latestChanges.length > 0
+      ? `<ul class="changelist-preview">${latestChanges
+          .map((c) => `<li>${escapeHtml(c)}</li>`)
+          .join("")}</ul>`
+      : `<p class="changelist-empty">No recent changes listed.</p>`;
+  const changelogPre = renderChangelogBody(changelog, latestChanges);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>APK Forge</title>
+  <title>APK Forge v${versionEsc}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap" rel="stylesheet" />
@@ -78,6 +114,74 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       border: 1px solid rgba(45, 212, 191, 0.35);
       padding: 0.2rem 0.55rem;
       border-radius: 999px;
+    }
+    .hdr-version {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .hdr-version strong {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .changelist-panel {
+      max-width: 72rem;
+      margin: 1.5rem auto 0;
+      padding: 0 1rem;
+    }
+    details.changelist-details {
+      margin: 0.85rem 0 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.65rem 0.9rem 0.75rem;
+    }
+    details.changelist-details > summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.75rem;
+    }
+    details.changelist-details > summary::-webkit-details-marker { display: none; }
+    details.changelist-details > summary::before {
+      content: "+";
+      color: var(--accent);
+      font-weight: 700;
+      width: 1rem;
+    }
+    details.changelist-details[open] > summary::before { content: "−"; }
+    .changelist-preview {
+      margin: 0.55rem 0 0;
+      padding-left: 1.15rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .changelist-preview li { margin: 0.2rem 0; }
+    .changelist-empty {
+      margin: 0.55rem 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .changelist-full {
+      margin: 0.75rem 0 0;
+      padding: 0.75rem 0.85rem;
+      border-radius: 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      overflow-x: auto;
+      max-height: 18rem;
+      line-height: 1.45;
     }
     .hdr-note {
       width: 100%;
@@ -459,7 +563,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     }
 
     .site-footer {
-      margin-top: 2.5rem;
+      margin-top: 1rem;
       padding: 1rem 1.25rem 2rem;
       border-top: 1px solid var(--border);
       text-align: center;
@@ -474,6 +578,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     <div class="hdr-inner">
       <h1>APK Forge</h1>
       <span class="hdr-badge">Local Gradle</span>
+      <span class="hdr-version" id="forge-version" title="APK Forge tool version">v<strong>${versionEsc}</strong></span>
       <p class="hdr-note">
         <strong>APK Forge</strong> is a small web tool to forge APKs and AABs for testing, or to upload to <strong>Google Play</strong> private / managed app distribution.
       </p>
@@ -671,8 +776,20 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     </div>
   </dialog>
 
+  <div class="changelist-panel">
+    <details class="changelist-details" id="changelist-details">
+      <summary>
+        <span>Version &amp; changelist</span>
+        <span class="hdr-version">v${versionEsc}</span>
+      </summary>
+      ${latestListHtml}
+      <pre class="changelist-full" id="changelist-full" aria-label="Full changelist">${changelogPre}</pre>
+    </details>
+  </div>
+
   <footer class="site-footer" role="contentinfo">
-    ⚙️ Created &amp; Powered by the Automation Team 🤖 &amp; AI
+    APK Forge <span id="footer-version">v${versionEsc}</span>
+    · ⚙️ Created &amp; Powered by the Automation Team 🤖 &amp; AI
   </footer>
 
   <script>

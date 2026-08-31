@@ -32,6 +32,7 @@ import {
   verifySigningEditorLogin,
   verifySigningSaveToken,
 } from "./signingAuth.js";
+import { readReleaseMeta } from "../../shared/releaseMeta.js";
 
 const serverDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = path.join(serverDir, ".env");
@@ -112,6 +113,16 @@ app.use("*", async (c, next) => {
   const ms = Date.now() - t;
   const status = c.res.status;
   console.log(`${c.req.method} ${c.req.path} ${status} ${ms}ms`);
+});
+
+app.get("/api/version", async () => {
+  const meta = await readReleaseMeta();
+  return json({
+    ok: true,
+    version: meta.version,
+    latest_changes: meta.latestChanges,
+    changelog: meta.changelog,
+  });
 });
 
 app.get("/api/config", async () => {
