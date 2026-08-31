@@ -35,6 +35,8 @@ public final class AppRestrictions {
     public static final String KEY_QA_DISABLE_EMAIL = "qa_disable_email";
     public static final String KEY_QA_DISABLE_SHARE = "qa_disable_share";
     public static final String KEY_QA_DISABLE_COPY = "qa_disable_copy";
+    /** Optional EID from EMM (e.g. after Android Management API hardwareInfo.euiccChipInfo). */
+    public static final String KEY_QA_DEVICE_EID = "qa_device_eid";
 
     public static final String FEATURE_VERBOSE_BUILD = "verbose_build";
 

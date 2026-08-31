@@ -33,14 +33,12 @@ import {
   verifySigningSaveToken,
 } from "./signingAuth.js";
 
-const envPath = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  ".env",
-);
+const serverDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const envPath = path.join(serverDir, ".env");
+const signingDefaultsPath = path.join(serverDir, "signing.defaults.env");
 loadDotEnv({ path: envPath, quiet: true });
 
-const bootSigningCfg = await readSigningEnvFile(envPath);
+const bootSigningCfg = await readSigningEnvFile(envPath, signingDefaultsPath);
 applySigningToProcessEnv(bootSigningCfg);
 
 function resolveAndroidProjectRoot(): string {
@@ -122,7 +120,7 @@ app.get("/api/config", async () => {
 });
 
 app.get("/api/signing-config", async () => {
-  const cfg = await readSigningEnvFile(envPath);
+  const cfg = await readSigningEnvFile(envPath, signingDefaultsPath);
   applySigningToProcessEnv(cfg);
   return json(cfg);
 });
@@ -231,7 +229,7 @@ app.put("/api/signing-config", async (c) => {
     const msg = e instanceof Error ? e.message : String(e);
     return json({ error: `Could not write .env: ${msg}` }, 500);
   }
-  const merged = await readSigningEnvFile(envPath);
+  const merged = await readSigningEnvFile(envPath, signingDefaultsPath);
   applySigningToProcessEnv(merged);
   return json({
     ok: true,
@@ -305,6 +303,7 @@ app.post("/api/build", async (c) => {
         artifactsDir,
         inputs: validated.inputs,
         signingEnvPath: envPath,
+        signingDefaultsPath,
       }),
   );
   if (waitedBehind > 0) {

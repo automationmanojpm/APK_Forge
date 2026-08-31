@@ -1,6 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="qa_screen_title">Build information</string>
+    <string name="qa_eid_title">Device EID (eUICC)</string>
+    <string name="qa_eid_hint">Tap Fetch to read the eSIM EID from the device. If Android blocks it, Fetch uses managed config qa_device_eid when your EMM provides one.</string>
+    <string name="qa_eid_placeholder">EID not fetched yet</string>
+    <string name="qa_eid_waiting_permission">Waiting for Phone permission…</string>
+    <string name="qa_eid_fetching">Reading EID…</string>
+    <string name="qa_eid_unsupported">EID requires Android 9 (API 28) or a device with eUICC / telephony</string>
+    <string name="qa_eid_unavailable">No EID from device or managed configuration</string>
+    <string name="qa_eid_disabled">eUICC service reports disabled on this device</string>
+    <string name="qa_eid_access_denied">Device APIs blocked EID. Set managed config qa_device_eid from your EMM (AMAPI hardwareInfo.euiccChipInfo), then tap Fetch again.</string>
+    <string name="qa_eid_permission_denied">Phone permission denied — cannot read EID. Tap Fetch again and allow Phone, or enable it in App info → Permissions.</string>
+    <string name="qa_eid_value">EID: %1$s</string>
+    <string name="qa_eid_value_managed">EID (managed config): %1$s</string>
+    <string name="qa_action_fetch_eid">Fetch EID</string>
+    <string name="qa_action_copy_eid">Copy EID</string>
+    <string name="qa_eid_copied">EID copied to clipboard</string>
+    <string name="qa_eid_copy_empty">Fetch EID first</string>
+    <string name="qa_eid_snackbar_ok">EID loaded</string>
+    <string name="qa_eid_snackbar_fail">Could not read EID — see details above</string>
+    <string name="restriction_qa_device_eid_title">Device EID</string>
+    <string name="restriction_qa_device_eid_desc">Optional. EMM can set this to the eUICC EID (e.g. from Android Management API hardwareInfo.euiccChipInfo). Used when on-device getEid() is blocked for third-party apps.</string>
     <string name="qa_managed_config_title">Managed configuration</string>
     <string name="qa_policy_actions_title">Policy &amp; intent checks</string>
     <string name="qa_copy">Copy for ticket</string>

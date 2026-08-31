@@ -286,11 +286,14 @@ export async function runLocalBuild(options: {
   inputs: Record<string, string>;
   /** When set, signing keys are re-read from this .env before each release build (keeps process.env in sync with disk). */
   signingEnvPath?: string;
+  /** Project-predefined RELEASE_* used when matching keys in signingEnvPath are empty. */
+  signingDefaultsPath?: string;
 }): Promise<
   | { ok: true; artifactName: string; relativeDownloadPath: string }
   | { ok: false; error: string }
 > {
-  const { projectRoot, artifactsDir, inputs, signingEnvPath } = options;
+  const { projectRoot, artifactsDir, inputs, signingEnvPath, signingDefaultsPath } =
+    options;
   const root = path.resolve(projectRoot);
   const gradlewName = process.platform === "win32" ? "gradlew.bat" : "gradlew";
   try {
@@ -305,7 +308,7 @@ export async function runLocalBuild(options: {
   let cleanup: (() => Promise<void>) | undefined;
   try {
     if (signingEnvPath) {
-      const cfg = await readSigningEnvFile(signingEnvPath);
+      const cfg = await readSigningEnvFile(signingEnvPath, signingDefaultsPath);
       applySigningToProcessEnv(cfg);
     }
     const isRelease = inputs.build_variant === "release";

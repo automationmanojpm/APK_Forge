@@ -80,25 +80,56 @@ function formatDotEnvValue(value: string): string {
   return value;
 }
 
-export async function readSigningEnvFile(
-  envFilePath: string,
-): Promise<SigningConfigRecord> {
+async function readEnvMap(filePath: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
   let content = "";
   try {
-    content = await fs.readFile(envFilePath, "utf8");
+    content = await fs.readFile(filePath, "utf8");
   } catch {
-    /* missing .env */
+    return map;
   }
-  const map = new Map<string, string>();
   for (const line of content.split(/\r?\n/)) {
     const p = parseDotEnvLine(line);
     if (p) {
       map.set(p.key, p.value);
     }
   }
+  return map;
+}
+
+function emptySigningConfig(): SigningConfigRecord {
   const out = {} as SigningConfigRecord;
   for (const k of SIGNING_ENV_KEYS) {
+    out[k] = "";
+  }
+  return out;
+}
+
+function configFromMap(map: Map<string, string>): SigningConfigRecord {
+  const out = emptySigningConfig();
+  for (const k of SIGNING_ENV_KEYS) {
     out[k] = map.get(k) ?? "";
+  }
+  return out;
+}
+
+/**
+ * Read signing keys from `.env`, filling blank keys from `signing.defaults.env`
+ * (project-predefined release keystore) when `defaultsFilePath` is set.
+ */
+export async function readSigningEnvFile(
+  envFilePath: string,
+  defaultsFilePath?: string,
+): Promise<SigningConfigRecord> {
+  const fromEnv = configFromMap(await readEnvMap(envFilePath));
+  if (!defaultsFilePath) {
+    return fromEnv;
+  }
+  const fromDefaults = configFromMap(await readEnvMap(defaultsFilePath));
+  const out = emptySigningConfig();
+  for (const k of SIGNING_ENV_KEYS) {
+    const v = fromEnv[k]?.trim();
+    out[k] = v ? fromEnv[k] : fromDefaults[k] ?? "";
   }
   return out;
 }

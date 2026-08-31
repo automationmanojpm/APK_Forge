@@ -1,5 +1,6 @@
 package com.proqa.testapp;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -10,6 +11,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.Choreographer;
 import android.view.View;
 import android.widget.TextView;
@@ -53,15 +55,25 @@ public class MainActivity extends AppCompatActivity {
             this::onSaveBuildInfoResult
     );
 
+    private final ActivityResultLauncher<String> requestPhoneStatePermission = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            this::onPhoneStatePermissionResult
+    );
+
     private Bundle restrictions = Bundle.EMPTY;
     private String builtIst;
     private String displayName;
     private String buildInfoBlock;
+    @Nullable
+    private String deviceEid;
 
     private TextView qaBuildDetails;
     private TextView qaBannerMessage;
     private TextView qaManagedConfigDetails;
+    private TextView qaEidValue;
     private MaterialButton copyButton;
+    private MaterialButton fetchEidButton;
+    private MaterialButton copyEidButton;
 
     /** Re-read restrictions on the next frame — Play may commit the bundle slightly after the first read. */
     private final Runnable deferredFollowUpReload = new Runnable() {
@@ -103,6 +115,9 @@ public class MainActivity extends AppCompatActivity {
         openUrlButton = findViewById(R.id.qaOpenUrlButton);
         emailButton = findViewById(R.id.qaEmailButton);
         appInfoButton = findViewById(R.id.qaAppInfoButton);
+        qaEidValue = findViewById(R.id.qaEidValue);
+        fetchEidButton = findViewById(R.id.qaFetchEidButton);
+        copyEidButton = findViewById(R.id.qaCopyEidButton);
 
         displayName = getString(R.string.app_name);
         appTitle.setText(displayName);
@@ -122,6 +137,8 @@ public class MainActivity extends AppCompatActivity {
         openUrlButton.setOnClickListener(v -> openTestUrl());
         emailButton.setOnClickListener(v -> emailBuildInfo());
         appInfoButton.setOnClickListener(v -> openAppSystemSettings());
+        fetchEidButton.setOnClickListener(v -> onFetchEidClicked());
+        copyEidButton.setOnClickListener(v -> copyEid());
     }
 
     @Override
@@ -239,9 +256,108 @@ public class MainActivity extends AppCompatActivity {
                 .append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n')
                 .append("OS: Android ").append(Build.VERSION.RELEASE)
                 .append(" (API ").append(Build.VERSION.SDK_INT).append(')');
+        if (!TextUtils.isEmpty(deviceEid)) {
+            sb.append('\n').append("EID: ").append(deviceEid);
+        }
 
         sb.append(AppRestrictions.summarizeForBuildFooter(restrictions));
         return sb.toString();
+    }
+
+    private void onFetchEidClicked() {
+        if (isDestroyed() || qaEidValue == null) {
+            return;
+        }
+        // Ask for Phone permission first — getEid() / UICC APIs need it on modern Android.
+        if (DeviceEidHelper.needsPhoneStatePermission(this)) {
+            qaEidValue.setText(R.string.qa_eid_waiting_permission);
+            copyEidButton.setEnabled(false);
+            requestPhoneStatePermission.launch(Manifest.permission.READ_PHONE_STATE);
+            return;
+        }
+        fetchAndShowEid();
+    }
+
+    private void onPhoneStatePermissionResult(boolean granted) {
+        if (isDestroyed() || qaEidValue == null) {
+            return;
+        }
+        if (!granted) {
+            deviceEid = null;
+            qaEidValue.setText(R.string.qa_eid_permission_denied);
+            copyEidButton.setEnabled(false);
+            Snackbar.make(findViewById(R.id.main), R.string.qa_eid_snackbar_fail, Snackbar.LENGTH_LONG)
+                    .show();
+            return;
+        }
+        fetchAndShowEid();
+    }
+
+    private void fetchAndShowEid() {
+        if (isDestroyed() || qaEidValue == null) {
+            return;
+        }
+        qaEidValue.setText(R.string.qa_eid_fetching);
+        try {
+            applyEidResult(DeviceEidHelper.fetch(this, restrictions), true);
+        } catch (RuntimeException e) {
+            deviceEid = null;
+            qaEidValue.setText(getString(R.string.qa_eid_unavailable) + "\n(" + e.getClass().getSimpleName()
+                    + (e.getMessage() != null ? ": " + e.getMessage() : "") + ")");
+            copyEidButton.setEnabled(false);
+            Snackbar.make(findViewById(R.id.main), R.string.qa_eid_snackbar_fail, Snackbar.LENGTH_LONG)
+                    .show();
+        }
+    }
+
+    private void applyEidResult(@NonNull DeviceEidHelper.Result result, boolean showSnackbar) {
+        deviceEid = result.eid;
+        switch (result.status) {
+            case UNSUPPORTED:
+                qaEidValue.setText(R.string.qa_eid_unsupported);
+                break;
+            case EUICC_DISABLED:
+                qaEidValue.setText(R.string.qa_eid_disabled);
+                break;
+            case ACCESS_DENIED:
+                qaEidValue.setText(R.string.qa_eid_access_denied);
+                break;
+            case UNAVAILABLE:
+                qaEidValue.setText(R.string.qa_eid_unavailable);
+                break;
+            case OK_MANAGED_CONFIG:
+                qaEidValue.setText(getString(R.string.qa_eid_value_managed, deviceEid));
+                break;
+            case OK:
+                qaEidValue.setText(getString(R.string.qa_eid_value, deviceEid));
+                break;
+        }
+        if (!TextUtils.isEmpty(result.detail)
+                && result.status != DeviceEidHelper.Status.OK
+                && result.status != DeviceEidHelper.Status.OK_MANAGED_CONFIG) {
+            qaEidValue.append("\n(" + result.detail + ")");
+        }
+        copyEidButton.setEnabled(!TextUtils.isEmpty(deviceEid));
+        qaBuildDetails.setText(buildDetailLines());
+        buildInfoBlock = buildCopyBlock();
+        if (showSnackbar) {
+            boolean ok = result.status == DeviceEidHelper.Status.OK
+                    || result.status == DeviceEidHelper.Status.OK_MANAGED_CONFIG;
+            int msg = ok ? R.string.qa_eid_snackbar_ok : R.string.qa_eid_snackbar_fail;
+            Snackbar.make(findViewById(R.id.main), msg, Snackbar.LENGTH_SHORT).show();
+        }
+    }
+
+    private void copyEid() {
+        if (TextUtils.isEmpty(deviceEid)) {
+            Snackbar.make(findViewById(R.id.main), R.string.qa_eid_copy_empty, Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("EID", deviceEid));
+        }
+        Snackbar.make(findViewById(R.id.main), R.string.qa_eid_copied, Snackbar.LENGTH_SHORT).show();
     }
 
     @NonNull

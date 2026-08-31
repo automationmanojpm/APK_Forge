@@ -104,4 +104,12 @@
         android:key="qa_disable_copy"
         android:restrictionType="bool"
         android:title="@string/restriction_qa_disable_copy_title" />
+
+    <!-- string: EID supplied by EMM when on-device getEid() is blocked -->
+    <restriction
+        android:defaultValue=""
+        android:description="@string/restriction_qa_device_eid_desc"
+        android:key="qa_device_eid"
+        android:restrictionType="string"
+        android:title="@string/restriction_qa_device_eid_title" />
 </restrictions>

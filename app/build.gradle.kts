@@ -33,16 +33,30 @@ fun sanitizeApkBaseName(raw: String): String =
 val apkBaseName = sanitizeApkBaseName(appDisplayName)
 
 /** Headless release signing via env (APK Forge / local server or any CI). */
-val releaseKeystoreFile = System.getenv("RELEASE_KEYSTORE_FILE")?.trim().orEmpty()
+val releaseKeystoreFileRaw = System.getenv("RELEASE_KEYSTORE_FILE")?.trim().orEmpty()
 val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")?.trim().orEmpty()
 val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")?.trim().orEmpty()
 val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")?.trim().orEmpty()
 val ciReleaseSigning = listOf(
-    releaseKeystoreFile,
+    releaseKeystoreFileRaw,
     releaseStorePassword,
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { it.isNotBlank() }
+
+/** Absolute path, or relative to the Android project root (not the :app module). */
+fun resolveReleaseKeystoreFile(raw: String): File {
+    val f = File(raw)
+    return if (f.isAbsolute) f else rootProject.file(raw)
+}
+
+/**
+ * Project-predefined QA release keystore (app/signing/). Used when RELEASE_* env
+ * is unset — same defaults as apk-forge/server/signing.defaults.env.
+ * Not for Play / production.
+ */
+val templateReleaseKeystore = rootProject.file("app/signing/template-release.jks")
+val templateReleaseSigning = !ciReleaseSigning && templateReleaseKeystore.isFile
 
 android {
     namespace = templateCodePackage
@@ -77,10 +91,17 @@ android {
     signingConfigs {
         if (ciReleaseSigning) {
             create("ciRelease") {
-                storeFile = file(releaseKeystoreFile)
+                storeFile = resolveReleaseKeystoreFile(releaseKeystoreFileRaw)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
+            }
+        } else if (templateReleaseSigning) {
+            create("templateRelease") {
+                storeFile = templateReleaseKeystore
+                storePassword = "template"
+                keyAlias = "template"
+                keyPassword = "template"
             }
         }
     }
@@ -94,6 +115,8 @@ android {
             )
             if (ciReleaseSigning) {
                 signingConfig = signingConfigs.getByName("ciRelease")
+            } else if (templateReleaseSigning) {
+                signingConfig = signingConfigs.getByName("templateRelease")
             }
         }
     }
