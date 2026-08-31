@@ -56,6 +56,9 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>APK Forge v${versionEsc}</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap" rel="stylesheet" />
@@ -1562,12 +1565,53 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
             out.appendChild(br);
             var a = document.createElement("a");
             var dlBase = __API_BASE__ || window.location.origin;
-            a.href = String(new URL(j.download_path, dlBase));
-            a.textContent = "Download " + (j.artifact || "artifact");
+            var dlUrl = String(new URL(j.download_path, dlBase));
+            var dlName = j.artifact || "artifact.apk";
+            a.href = dlUrl;
+            a.textContent = "Download " + dlName;
             a.rel = "noopener noreferrer";
+            a.download = dlName;
             a.style.color = "var(--accent)";
             a.style.fontWeight = "600";
+            a.addEventListener("click", function (ev) {
+              // Fetch + blob avoids Chrome "Insecure download blocked" for .apk over plain HTTP.
+              ev.preventDefault();
+              a.setAttribute("aria-busy", "true");
+              var prev = a.textContent;
+              a.textContent = "Preparing download…";
+              fetch(dlUrl, { credentials: "same-origin", cache: "no-store" })
+                .then(function (r) {
+                  if (!r.ok) throw new Error("Download failed (HTTP " + r.status + ")");
+                  return r.blob();
+                })
+                .then(function (blob) {
+                  var obj = URL.createObjectURL(blob);
+                  var tmp = document.createElement("a");
+                  tmp.href = obj;
+                  tmp.download = dlName;
+                  document.body.appendChild(tmp);
+                  tmp.click();
+                  tmp.remove();
+                  setTimeout(function () { URL.revokeObjectURL(obj); }, 2000);
+                })
+                .catch(function (err) {
+                  setError(String(err && err.message ? err.message : err));
+                  window.location.assign(dlUrl);
+                })
+                .finally(function () {
+                  a.textContent = prev;
+                  a.removeAttribute("aria-busy");
+                });
+            });
             out.appendChild(a);
+            if (window.location.protocol === "http:") {
+              var pHttp = document.createElement("p");
+              pHttp.className = "note";
+              pHttp.style.marginTop = "0.5rem";
+              pHttp.textContent =
+                "Tip: if the browser still blocks the file, click Keep, or serve APK Forge over HTTPS (see deploy/Caddyfile).";
+              out.appendChild(pHttp);
+            }
           }
         }
       } catch (e) {

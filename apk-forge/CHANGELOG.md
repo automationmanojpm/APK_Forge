@@ -1,5 +1,10 @@
 # APK Forge changelist
 
+## 1.2.1 — 2026-08-31
+- Favicon for browser tab / bookmarks
+- APK/AAB download via fetch+blob to reduce Chrome “Insecure download blocked” on HTTP
+- Artifact responses use attachment + octet-stream headers
+
 ## 1.2.0 — 2026-08-31
 - Website shows tool version and changelist (header, expandable panel, footer)
 - `GET /api/version` returns version + changelog JSON

@@ -369,16 +369,13 @@ app.get("/api/artifacts/:name", async (c) => {
   }
   const nodeStream = createReadStream(resolved);
   const webStream = Readable.toWeb(nodeStream);
-  const ext = name.toLowerCase().endsWith(".aab") ? ".aab" : ".apk";
-  const mime =
-    ext === ".aab"
-      ? "application/octet-stream"
-      : "application/vnd.android.package-archive";
+  const mime = "application/octet-stream";
   return new Response(webStream, {
     headers: {
       "content-type": mime,
-      "content-disposition": `attachment; filename="${name}"`,
+      "content-disposition": `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`,
       "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
     },
   });
 });

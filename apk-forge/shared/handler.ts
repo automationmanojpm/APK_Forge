@@ -2,6 +2,7 @@
  * Shared HTTP handler for APK Forge (Node server on your VM).
  */
 import { buildHtmlPage } from "./html.js";
+import { FAVICON_SVG } from "./favicon.js";
 import { readReleaseMeta } from "./releaseMeta.js";
 
 /** Canonical browser path for the APK Forge UI (root redirects here). */
@@ -20,6 +21,28 @@ export async function handleApkForgeRequest(request: Request): Promise<Response>
     return new Response("ok", {
       status: 200,
       headers: { "cache-control": "no-store" },
+    });
+  }
+
+  if (
+    (method === "GET" || method === "HEAD") &&
+    (p === "/favicon.svg" || p === "/favicon.ico")
+  ) {
+    if (method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          "content-type": "image/svg+xml; charset=utf-8",
+          "cache-control": "public, max-age=86400",
+        },
+      });
+    }
+    return new Response(FAVICON_SVG, {
+      status: 200,
+      headers: {
+        "content-type": "image/svg+xml; charset=utf-8",
+        "cache-control": "public, max-age=86400",
+      },
     });
   }
 
