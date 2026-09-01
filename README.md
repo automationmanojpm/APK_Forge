@@ -88,6 +88,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) (UI under `/apk-forge`).
 
+**Release signing:** use the **Release signature** dropdown before **Start build**. Profiles are saved in `apk-forge/server/signing.profiles.json` (create/edit in the Signing sidebar). On first run, one profile is imported from `.env`.
+
 Full deploy notes (Docker, Linux VM, signing env keys): [`apk-forge/SERVER-DEPLOY.txt`](apk-forge/SERVER-DEPLOY.txt).
 
 ---

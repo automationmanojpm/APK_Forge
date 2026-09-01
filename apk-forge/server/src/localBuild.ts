@@ -6,7 +6,16 @@ import path from "node:path";
 import {
   applySigningToProcessEnv,
   readSigningEnvFile,
+  type SigningConfigRecord,
 } from "./signingEnv.js";
+import {
+  assertSigningProfileReadyForBuild,
+  getSigningProfileById,
+  listSigningProfiles,
+  type SigningProfile,
+  type SigningProfileMode,
+  resolveReleaseKeystorePath,
+} from "./signingProfiles.js";
 import {
   clearForgeOverlay,
   consumeIconToken,
@@ -15,6 +24,7 @@ import {
   restoreForgeIconBackups,
   scrubResBackupDebris,
 } from "./buildIcon.js";
+import { readArtifactSigningInfo } from "./artifactSigning.js";
 
 function stripBase64Whitespace(b64: string): string {
   return b64.replace(/\s/g, "");
@@ -27,32 +37,13 @@ function stripBase64Whitespace(b64: string): string {
  * not under ANDROID_PROJECT_ROOT.
  * Any other relative path resolves against ANDROID_PROJECT_ROOT (e.g. `app/release.jks`).
  */
-function resolveReleaseKeystorePath(
-  raw: string,
+async function applyProfileSigning(
+  mode: SigningProfileMode,
+  creds: SigningConfigRecord,
   projectRoot: string,
-): string {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-  if (path.isAbsolute(trimmed)) {
-    return path.normalize(trimmed);
-  }
-  const asPosix = trimmed.replace(/\\/g, "/");
-  const segments = asPosix.split("/").filter(Boolean);
-  if (segments[0] === ".android") {
-    return path.normalize(path.join(os.homedir(), ...segments));
-  }
-  return path.normalize(path.resolve(projectRoot, trimmed));
-}
-
-async function prepareSigning(
-  signing_mode: string,
-  projectRoot: string,
-): Promise<{ childEnv: NodeJS.ProcessEnv; cleanup: () => Promise<void> }> {
-  const created: string[] = [];
-  const childEnv: NodeJS.ProcessEnv = { ...process.env };
-
+  childEnv: NodeJS.ProcessEnv,
+  created: string[],
+): Promise<void> {
   const pushTempKeystore = async (
     b64: string,
     store: string,
@@ -71,14 +62,14 @@ async function prepareSigning(
     childEnv.RELEASE_KEY_PASSWORD = keyPw;
   };
 
-  if (signing_mode === "custom") {
-    const b64 = process.env.CUSTOM_ANDROID_KEYSTORE_BASE64?.trim();
-    const store = process.env.CUSTOM_ANDROID_KEYSTORE_PASSWORD?.trim();
-    const alias = process.env.CUSTOM_ANDROID_KEY_ALIAS?.trim();
-    const keyPw = process.env.CUSTOM_ANDROID_KEY_PASSWORD?.trim();
+  if (mode === "custom_base64") {
+    const b64 = creds.CUSTOM_ANDROID_KEYSTORE_BASE64?.trim();
+    const store = creds.CUSTOM_ANDROID_KEYSTORE_PASSWORD?.trim();
+    const alias = creds.CUSTOM_ANDROID_KEY_ALIAS?.trim();
+    const keyPw = creds.CUSTOM_ANDROID_KEY_PASSWORD?.trim();
     if (!b64) {
       throw new Error(
-        "signing_mode=custom requires CUSTOM_ANDROID_KEYSTORE_BASE64 and related CUSTOM_ANDROID_* password/alias env vars",
+        "custom_base64 profile requires CUSTOM_ANDROID_KEYSTORE_BASE64 and related CUSTOM_ANDROID_* password/alias fields",
       );
     }
     if (!store || !alias || !keyPw) {
@@ -87,6 +78,139 @@ async function prepareSigning(
       );
     }
     await pushTempKeystore(b64, store, alias, keyPw);
+    return;
+  }
+
+  if (mode === "android_base64") {
+    const b64 = creds.ANDROID_KEYSTORE_BASE64?.trim();
+    const store = creds.ANDROID_KEYSTORE_PASSWORD?.trim();
+    const alias = creds.ANDROID_KEY_ALIAS?.trim();
+    const keyPw = creds.ANDROID_KEY_PASSWORD?.trim();
+    if (!b64) {
+      throw new Error(
+        "android_base64 profile requires ANDROID_KEYSTORE_BASE64 and related ANDROID_* fields",
+      );
+    }
+    if (!store || !alias || !keyPw) {
+      throw new Error(
+        "Missing ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, or ANDROID_KEY_PASSWORD",
+      );
+    }
+    await pushTempKeystore(b64, store, alias, keyPw);
+    return;
+  }
+
+  const kf = creds.RELEASE_KEYSTORE_FILE?.trim();
+  const sp = creds.RELEASE_STORE_PASSWORD?.trim();
+  const al = creds.RELEASE_KEY_ALIAS?.trim();
+  const kp = creds.RELEASE_KEY_PASSWORD?.trim();
+  if (kf && sp && al && kp) {
+    const resolvedKf = resolveReleaseKeystorePath(kf, projectRoot);
+    try {
+      await fs.access(resolvedKf);
+    } catch {
+      throw new Error(
+        `RELEASE_KEYSTORE_FILE not found: ${resolvedKf}` +
+          (resolvedKf !== kf ? ` (from profile: ${kf})` : ""),
+      );
+    }
+    childEnv.RELEASE_KEYSTORE_FILE = resolvedKf;
+    childEnv.RELEASE_STORE_PASSWORD = sp;
+    childEnv.RELEASE_KEY_ALIAS = al;
+    childEnv.RELEASE_KEY_PASSWORD = kp;
+    return;
+  }
+
+  throw new Error(
+    "release_file profile requires RELEASE_KEYSTORE_FILE + RELEASE_STORE_PASSWORD + RELEASE_KEY_ALIAS + RELEASE_KEY_PASSWORD",
+  );
+}
+
+function profileToConfigRecord(profile: SigningProfile): SigningConfigRecord {
+  return {
+    RELEASE_KEYSTORE_FILE: profile.RELEASE_KEYSTORE_FILE ?? "",
+    RELEASE_STORE_PASSWORD: profile.RELEASE_STORE_PASSWORD ?? "",
+    RELEASE_KEY_ALIAS: profile.RELEASE_KEY_ALIAS ?? "",
+    RELEASE_KEY_PASSWORD: profile.RELEASE_KEY_PASSWORD ?? "",
+    ANDROID_KEYSTORE_BASE64: profile.ANDROID_KEYSTORE_BASE64 ?? "",
+    ANDROID_KEYSTORE_PASSWORD: profile.ANDROID_KEYSTORE_PASSWORD ?? "",
+    ANDROID_KEY_ALIAS: profile.ANDROID_KEY_ALIAS ?? "",
+    ANDROID_KEY_PASSWORD: profile.ANDROID_KEY_PASSWORD ?? "",
+    CUSTOM_ANDROID_KEYSTORE_BASE64: profile.CUSTOM_ANDROID_KEYSTORE_BASE64 ?? "",
+    CUSTOM_ANDROID_KEYSTORE_PASSWORD:
+      profile.CUSTOM_ANDROID_KEYSTORE_PASSWORD ?? "",
+    CUSTOM_ANDROID_KEY_ALIAS: profile.CUSTOM_ANDROID_KEY_ALIAS ?? "",
+    CUSTOM_ANDROID_KEY_PASSWORD: profile.CUSTOM_ANDROID_KEY_PASSWORD ?? "",
+  };
+}
+
+async function prepareSigningFromProfile(
+  profileId: string,
+  profilesPath: string,
+  envPath: string,
+  defaultsPath: string,
+  projectRoot: string,
+): Promise<{
+  childEnv: NodeJS.ProcessEnv;
+  cleanup: () => Promise<void>;
+  profileLabel: string;
+}> {
+  const store = await listSigningProfiles(
+    profilesPath,
+    envPath,
+    defaultsPath,
+    projectRoot,
+  );
+  const profile = getSigningProfileById(store, profileId);
+  if (!profile) {
+    throw new Error(`Signing profile not found: ${profileId}`);
+  }
+  await assertSigningProfileReadyForBuild(profile, projectRoot);
+  const created: string[] = [];
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  await applyProfileSigning(
+    profile.mode,
+    profileToConfigRecord(profile),
+    projectRoot,
+    childEnv,
+    created,
+  );
+  return {
+    childEnv,
+    profileLabel: profile.label,
+    cleanup: async () => {
+      for (const p of created) {
+        await fs.unlink(p).catch(() => {});
+      }
+    },
+  };
+}
+
+async function prepareSigning(
+  signing_mode: string,
+  projectRoot: string,
+): Promise<{ childEnv: NodeJS.ProcessEnv; cleanup: () => Promise<void> }> {
+  const created: string[] = [];
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+
+  if (signing_mode === "custom") {
+    await applyProfileSigning(
+      "custom_base64",
+      profileToConfigRecord({
+        id: "legacy",
+        label: "legacy",
+        mode: "custom_base64",
+        CUSTOM_ANDROID_KEYSTORE_BASE64:
+          process.env.CUSTOM_ANDROID_KEYSTORE_BASE64 ?? "",
+        CUSTOM_ANDROID_KEYSTORE_PASSWORD:
+          process.env.CUSTOM_ANDROID_KEYSTORE_PASSWORD ?? "",
+        CUSTOM_ANDROID_KEY_ALIAS: process.env.CUSTOM_ANDROID_KEY_ALIAS ?? "",
+        CUSTOM_ANDROID_KEY_PASSWORD: process.env.CUSTOM_ANDROID_KEY_PASSWORD ?? "",
+      }),
+      projectRoot,
+      childEnv,
+      created,
+    );
     return {
       childEnv,
       cleanup: async () => {
@@ -99,15 +223,21 @@ async function prepareSigning(
 
   const defaultB64 = process.env.ANDROID_KEYSTORE_BASE64?.trim();
   if (defaultB64) {
-    const store = process.env.ANDROID_KEYSTORE_PASSWORD?.trim();
-    const alias = process.env.ANDROID_KEY_ALIAS?.trim();
-    const keyPw = process.env.ANDROID_KEY_PASSWORD?.trim();
-    if (!store || !alias || !keyPw) {
-      throw new Error(
-        "Missing ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, or ANDROID_KEY_PASSWORD",
-      );
-    }
-    await pushTempKeystore(defaultB64, store, alias, keyPw);
+    await applyProfileSigning(
+      "android_base64",
+      profileToConfigRecord({
+        id: "legacy",
+        label: "legacy",
+        mode: "android_base64",
+        ANDROID_KEYSTORE_BASE64: process.env.ANDROID_KEYSTORE_BASE64 ?? "",
+        ANDROID_KEYSTORE_PASSWORD: process.env.ANDROID_KEYSTORE_PASSWORD ?? "",
+        ANDROID_KEY_ALIAS: process.env.ANDROID_KEY_ALIAS ?? "",
+        ANDROID_KEY_PASSWORD: process.env.ANDROID_KEY_PASSWORD ?? "",
+      }),
+      projectRoot,
+      childEnv,
+      created,
+    );
     return {
       childEnv,
       cleanup: async () => {
@@ -118,27 +248,29 @@ async function prepareSigning(
     };
   }
 
-  const kf = process.env.RELEASE_KEYSTORE_FILE?.trim();
-  const sp = process.env.RELEASE_STORE_PASSWORD?.trim();
-  const al = process.env.RELEASE_KEY_ALIAS?.trim();
-  const kp = process.env.RELEASE_KEY_PASSWORD?.trim();
-  if (kf && sp && al && kp) {
-    const resolvedKf = resolveReleaseKeystorePath(kf, projectRoot);
-    try {
-      await fs.access(resolvedKf);
-    } catch {
-      throw new Error(
-        `RELEASE_KEYSTORE_FILE not found: ${resolvedKf}` +
-          (resolvedKf !== kf ? ` (from .env: ${kf})` : ""),
-      );
-    }
-    childEnv.RELEASE_KEYSTORE_FILE = resolvedKf;
-    return { childEnv, cleanup: async () => {} };
-  }
-
-  throw new Error(
-    "Signing not configured: set ANDROID_KEYSTORE_BASE64 + ANDROID_KEYSTORE_PASSWORD + ANDROID_KEY_ALIAS + ANDROID_KEY_PASSWORD, or RELEASE_KEYSTORE_FILE + RELEASE_STORE_PASSWORD + RELEASE_KEY_ALIAS + RELEASE_KEY_PASSWORD, or (custom) CUSTOM_ANDROID_* base64 group",
+  await applyProfileSigning(
+    "release_file",
+    profileToConfigRecord({
+      id: "legacy",
+      label: "legacy",
+      mode: "release_file",
+      RELEASE_KEYSTORE_FILE: process.env.RELEASE_KEYSTORE_FILE ?? "",
+      RELEASE_STORE_PASSWORD: process.env.RELEASE_STORE_PASSWORD ?? "",
+      RELEASE_KEY_ALIAS: process.env.RELEASE_KEY_ALIAS ?? "",
+      RELEASE_KEY_PASSWORD: process.env.RELEASE_KEY_PASSWORD ?? "",
+    }),
+    projectRoot,
+    childEnv,
+    created,
   );
+  return {
+    childEnv,
+    cleanup: async () => {
+      for (const p of created) {
+        await fs.unlink(p).catch(() => {});
+      }
+    },
+  };
 }
 
 /**
@@ -303,12 +435,33 @@ export async function runLocalBuild(options: {
   signingEnvPath?: string;
   /** Project-predefined RELEASE_* used when matching keys in signingEnvPath are empty. */
   signingDefaultsPath?: string;
+  /** Named signing profiles JSON (preferred for release builds). */
+  signingProfilesPath?: string;
 }): Promise<
-  | { ok: true; artifactName: string; relativeDownloadPath: string }
+  | {
+      ok: true;
+      artifactName: string;
+      relativeDownloadPath: string;
+      signingProfileId?: string;
+      signingProfileLabel?: string;
+      signingCertificate?: {
+        sha256?: string;
+        sha1?: string;
+        md5?: string;
+        subject?: string;
+      };
+      signingCopyText?: string;
+    }
   | { ok: false; error: string }
 > {
-  const { projectRoot, artifactsDir, inputs, signingEnvPath, signingDefaultsPath } =
-    options;
+  const {
+    projectRoot,
+    artifactsDir,
+    inputs,
+    signingEnvPath,
+    signingDefaultsPath,
+    signingProfilesPath,
+  } = options;
   const root = path.resolve(projectRoot);
   const gradlewName = process.platform === "win32" ? "gradlew.bat" : "gradlew";
   try {
@@ -322,15 +475,34 @@ export async function runLocalBuild(options: {
 
   let cleanup: (() => Promise<void>) | undefined;
   let iconTempPath: string | undefined;
+  let signingProfileId: string | undefined;
+  let signingProfileLabel: string | undefined;
   try {
     if (signingEnvPath) {
       const cfg = await readSigningEnvFile(signingEnvPath, signingDefaultsPath);
       applySigningToProcessEnv(cfg);
     }
     const isRelease = inputs.build_variant === "release";
-    const signing = isRelease
-      ? await prepareSigning(inputs.signing_mode, root)
-      : { childEnv: { ...process.env }, cleanup: async () => {} };
+    let signing: { childEnv: NodeJS.ProcessEnv; cleanup: () => Promise<void> };
+    if (isRelease) {
+      const profileId = inputs.signing_profile_id?.trim();
+      if (profileId && signingProfilesPath && signingEnvPath) {
+        const fromProfile = await prepareSigningFromProfile(
+          profileId,
+          signingProfilesPath,
+          signingEnvPath,
+          signingDefaultsPath ?? "",
+          root,
+        );
+        signingProfileId = profileId;
+        signingProfileLabel = fromProfile.profileLabel;
+        signing = fromProfile;
+      } else {
+        signing = await prepareSigning(inputs.signing_mode, root);
+      }
+    } else {
+      signing = { childEnv: { ...process.env }, cleanup: async () => {} };
+    }
     cleanup = signing.cleanup;
 
     await clearForgeOverlay(root);
@@ -365,10 +537,19 @@ export async function runLocalBuild(options: {
     const artifactName = path.basename(built);
     const dest = path.join(options.artifactsDir, artifactName);
     await fs.copyFile(built, dest);
+    const signingInfo = await readArtifactSigningInfo({
+      artifactPath: dest,
+      profileLabel: signingProfileLabel,
+      buildVariant: inputs.build_variant,
+    });
     return {
       ok: true,
       artifactName,
       relativeDownloadPath: `/api/artifacts/${artifactName}`,
+      ...(signingProfileId ? { signingProfileId } : {}),
+      ...(signingProfileLabel ? { signingProfileLabel } : {}),
+      ...(signingInfo?.certificate ? { signingCertificate: signingInfo.certificate } : {}),
+      ...(signingInfo?.copyText ? { signingCopyText: signingInfo.copyText } : {}),
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

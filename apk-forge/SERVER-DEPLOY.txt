@@ -68,4 +68,13 @@ Optional build branding: POST /api/build-icon (raw PNG/WebP ≤2MB) → icon_tok
 include icon_token on POST /api/build. The server temporarily replaces launcher
 assets under app/src/main/res for that Gradle run, then restores the originals.
 
+Named signing profiles (Release builds):
+  apk-forge/server/signing.profiles.json   (gitignored; secrets)
+  apk-forge/server/signing.profiles.example.json
+  GET /api/signing-profiles
+  GET /api/signing-profiles/:id
+  PUT /api/signing-profiles
+  DELETE /api/signing-profiles/:id
+  POST /api/build body.signing_profile_id
+
 ================================================================================

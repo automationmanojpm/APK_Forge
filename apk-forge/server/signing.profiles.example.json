@@ -1,0 +1,50 @@
+{
+  "default_profile_id": "signature_1",
+  "profiles": [
+    {
+      "id": "signature_1",
+      "label": "Signature 1",
+      "mode": "release_file",
+      "RELEASE_KEYSTORE_FILE": "app/signing/template-release.jks",
+      "RELEASE_STORE_PASSWORD": "template",
+      "RELEASE_KEY_ALIAS": "template",
+      "RELEASE_KEY_PASSWORD": "template"
+    },
+    {
+      "id": "signature_2",
+      "label": "Signature 2",
+      "mode": "release_file",
+      "RELEASE_KEYSTORE_FILE": "app/signing/signature-2.jks",
+      "RELEASE_STORE_PASSWORD": "signature2",
+      "RELEASE_KEY_ALIAS": "signature2",
+      "RELEASE_KEY_PASSWORD": "signature2"
+    },
+    {
+      "id": "signature_3",
+      "label": "Signature 3",
+      "mode": "release_file",
+      "RELEASE_KEYSTORE_FILE": "app/signing/signature-3.jks",
+      "RELEASE_STORE_PASSWORD": "signature3",
+      "RELEASE_KEY_ALIAS": "signature3",
+      "RELEASE_KEY_PASSWORD": "signature3"
+    },
+    {
+      "id": "signature_4",
+      "label": "Signature 4",
+      "mode": "release_file",
+      "RELEASE_KEYSTORE_FILE": "app/signing/signature-4.jks",
+      "RELEASE_STORE_PASSWORD": "signature4",
+      "RELEASE_KEY_ALIAS": "signature4",
+      "RELEASE_KEY_PASSWORD": "signature4"
+    },
+    {
+      "id": "signature_5",
+      "label": "Signature 5",
+      "mode": "release_file",
+      "RELEASE_KEYSTORE_FILE": "app/signing/signature-5.jks",
+      "RELEASE_STORE_PASSWORD": "signature5",
+      "RELEASE_KEY_ALIAS": "signature5",
+      "RELEASE_KEY_PASSWORD": "signature5"
+    }
+  ]
+}

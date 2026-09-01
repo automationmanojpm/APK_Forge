@@ -493,6 +493,65 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       background: rgba(45, 212, 191, 0.08);
     }
     button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.btn-sm {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75rem;
+      min-height: 0;
+    }
+    .download-block {
+      margin-top: 0.75rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 4px);
+      background: var(--bg-elevated);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: 100%;
+    }
+    .download-link {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .download-link:hover { color: #5eead4; }
+    .signing-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .signing-info-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .signing-info-row {
+      display: grid;
+      grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .signing-info-label {
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+    .signing-info-value {
+      font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+      font-size: 0.75rem;
+      color: var(--text);
+      word-break: break-all;
+      line-height: 1.35;
+    }
+    .signing-info-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 0.15rem;
+    }
     button.btn-primary {
       width: 100%;
       margin-top: 0.25rem;
@@ -613,8 +672,28 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
 
       <div class="side-section" id="signing-section">
         <h3 class="side-h">Signing (release)</h3>
-        <p class="side-hint"><strong>Release</strong> reads signing from <code>apk-forge/server/.env</code>, filling blank keys from committed <code>signing.defaults.env</code> (<code>app/signing/template-release.jks</code>, alias/password <code>template</code> — QA only). Put <code>RELEASE_KEYSTORE_FILE</code> (absolute; or relative to the Android project root; or <code>.android/…</code> under your user profile) and/or <code>ANDROID_KEYSTORE_BASE64</code> in <code>.env</code> to override. Use <strong>+/−</strong> on <strong>Default credentials</strong> to expand (collapsed by default). <strong>Save to .env</strong> opens a sign-in dialog when required. <strong>Save</strong> only updates the fields sent from the form (the other default group in <code>.env</code> is unchanged). If both ANDROID_* and RELEASE_* are set, Gradle uses ANDROID base64 first. <strong>Debug</strong> ignores signing. Localhost only.</p>
-        <fieldset class="signing-mode-fieldset field" id="signing-mode-fieldset">
+        <p class="side-hint">Five built-in signatures (<strong>Signature 1</strong> … <strong>Signature 5</strong>) are always available in the dropdown. Configure each slot’s keystore below and pick one under <strong>Release signature</strong> when building. <strong>Signature 1</strong> is prefilled from <code>.env</code> + <code>signing.defaults.env</code> on first run.</p>
+
+        <div class="field">
+          <label class="f" for="signing_profile_select">Signature</label>
+          <select class="f" id="signing_profile_select">
+            <option value="signature_1">Signature 1</option>
+            <option value="signature_2">Signature 2</option>
+            <option value="signature_3">Signature 3</option>
+            <option value="signature_4">Signature 4</option>
+            <option value="signature_5">Signature 5</option>
+          </select>
+        </div>
+        <div class="field hidden" aria-hidden="true">
+          <label class="f" for="signing_profile_id">Signature id</label>
+          <input class="f" id="signing_profile_id" autocomplete="off" spellcheck="false" readonly />
+        </div>
+        <div class="field hidden" aria-hidden="true">
+          <label class="f" for="signing_profile_label">Signature name</label>
+          <input class="f" id="signing_profile_label" autocomplete="off" readonly />
+        </div>
+
+        <fieldset class="signing-mode-fieldset field hidden" id="signing-mode-fieldset" aria-hidden="true">
           <legend class="signing-mode-legend">Keystore group</legend>
           <div class="signing-mode-options">
             <label>
@@ -629,10 +708,10 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
         </fieldset>
 
         <div class="row-actions" style="margin-top:0.65rem">
-          <button type="button" class="btn" id="load-signing">Load from .env</button>
-          <button type="button" class="btn btn-with-lock" id="save-signing" aria-label="Save signing to .env (locked)">
+          <button type="button" class="btn" id="load-signing">Reload profile</button>
+          <button type="button" class="btn btn-with-lock" id="save-signing" aria-label="Save signing profile (locked)">
             <svg class="btn-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Save to .env
+            Save profile
           </button>
         </div>
         <p id="signing-msg" class="note" aria-live="polite"></p>
@@ -652,7 +731,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
           </div>
 
           <div id="signing-default-release-panel" class="signing-group" role="region" aria-labelledby="signing-default-cred-label-release">
-            <p id="signing-default-cred-label-release" class="env-k" style="margin-top:0">RELEASE_* — store / alias / key</p>
+            <p id="signing-default-cred-label-release" class="env-k" style="margin-top:0">RELEASE_* — file keystore</p>
+            <div class="field">
+              <label class="f" for="RELEASE_KEYSTORE_FILE">RELEASE_KEYSTORE_FILE</label>
+              <input class="f" id="RELEASE_KEYSTORE_FILE" autocomplete="off" spellcheck="false" placeholder="app/signing/template-release.jks" />
+            </div>
             <div class="field">
               <label class="f" for="RELEASE_STORE_PASSWORD">RELEASE_STORE_PASSWORD</label>
               <input class="f" id="RELEASE_STORE_PASSWORD" type="password" autocomplete="off" />
@@ -668,7 +751,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
           </div>
 
           <div id="signing-default-android-panel" class="signing-group hidden" role="region" aria-hidden="true" aria-labelledby="signing-default-cred-label-android">
-            <p id="signing-default-cred-label-android" class="env-k" style="margin-top:0">ANDROID_* — store / alias / key</p>
+            <p id="signing-default-cred-label-android" class="env-k" style="margin-top:0">ANDROID_* — base64 keystore</p>
+            <div class="field">
+              <label class="f" for="ANDROID_KEYSTORE_BASE64">ANDROID_KEYSTORE_BASE64</label>
+              <textarea class="f" id="ANDROID_KEYSTORE_BASE64" rows="3" spellcheck="false"></textarea>
+            </div>
             <div class="field">
               <label class="f" for="ANDROID_KEYSTORE_PASSWORD">ANDROID_KEYSTORE_PASSWORD</label>
               <input class="f" id="ANDROID_KEYSTORE_PASSWORD" type="password" autocomplete="off" />
@@ -759,6 +846,16 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
           <select class="f" id="build_variant">
             <option value="release" selected>Release</option>
             <option value="debug">Debug</option>
+          </select>
+        </div>
+        <div class="field" id="build-signing-profile-field">
+          <label class="f" for="build_signing_profile">Release signature</label>
+          <select class="f" id="build_signing_profile">
+            <option value="signature_1">Signature 1</option>
+            <option value="signature_2">Signature 2</option>
+            <option value="signature_3">Signature 3</option>
+            <option value="signature_4">Signature 4</option>
+            <option value="signature_5">Signature 5</option>
           </select>
         </div>
         <div class="field">
@@ -852,6 +949,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     const signingCustomPanel = document.getElementById("signing-custom-panel");
     const signingSection = document.getElementById("signing-section");
     const signingDefaultDetails = document.getElementById("signing-default-details");
+    const signingProfileSelect = document.getElementById("signing_profile_select");
+    const signingProfileIdInput = document.getElementById("signing_profile_id");
+    const signingProfileLabelInput = document.getElementById("signing_profile_label");
+    const buildSigningProfile = document.getElementById("build_signing_profile");
+    const buildSigningProfileField = document.getElementById("build-signing-profile-field");
     const editorSessionLine = document.getElementById("editor-session-line");
     const editorSessionText = document.getElementById("editor-session-text");
     const editorSignOut = document.getElementById("editor-sign-out");
@@ -873,11 +975,13 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     var signingSaveConfiguredOnServer = false;
     var pendingEditorSave = /** @type {"signing" | "gradle" | null} */ (null);
     var RELEASE_SIGNING_FORM_IDS = [
+      "RELEASE_KEYSTORE_FILE",
       "RELEASE_STORE_PASSWORD",
       "RELEASE_KEY_ALIAS",
       "RELEASE_KEY_PASSWORD",
     ];
     var ANDROID_SIGNING_FORM_IDS = [
+      "ANDROID_KEYSTORE_BASE64",
       "ANDROID_KEYSTORE_PASSWORD",
       "ANDROID_KEY_ALIAS",
       "ANDROID_KEY_PASSWORD",
@@ -891,6 +995,351 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     var ALL_SIGNING_FORM_IDS = RELEASE_SIGNING_FORM_IDS.concat(ANDROID_SIGNING_FORM_IDS).concat(CUSTOM_SIGNING_FORM_IDS);
     var CUSTOM_SIGNING_PREFIX = "CUSTOM_ANDROID_";
     var DEFAULT_CRED_SESSION_KEY = "apkForgeDefaultCred";
+    var signingProfilesCache = /** @type {{ default_profile_id: string, profiles: Array<{id:string,label:string,mode:string,configured?:boolean}> }} */ ({
+      default_profile_id: "",
+      profiles: [],
+    });
+    var BUILTIN_SIGNATURE_COUNT = 5;
+
+    function signatureDisplayName(index) {
+      return "Signature " + (index + 1);
+    }
+
+    function signatureNumberFromId(id) {
+      var m = /^signature_(\d+)$/.exec(id || "");
+      if (!m) return -1;
+      var n = Number(m[1]);
+      return n >= 1 && n <= BUILTIN_SIGNATURE_COUNT ? n : -1;
+    }
+
+    function getSelectedSigningProfileId() {
+      if (signingProfileSelect && signingProfileSelect.value) {
+        return signingProfileSelect.value;
+      }
+      if (signingProfileIdInput && signingProfileIdInput.value) {
+        return signingProfileIdInput.value.trim();
+      }
+      return signingProfilesCache.default_profile_id || "";
+    }
+
+    function getBuildSigningProfileId() {
+      if (buildSigningProfile && buildSigningProfile.value) {
+        return buildSigningProfile.value;
+      }
+      return getSelectedSigningProfileId();
+    }
+
+    function signatureIndexForId(id) {
+      var n = signatureNumberFromId(id);
+      return n > 0 ? n - 1 : -1;
+    }
+
+    function signatureDisplayForId(id) {
+      var n = signatureNumberFromId(id);
+      return n > 0 ? signatureDisplayName(n - 1) : id;
+    }
+
+    function copyTextToClipboard(text, btn) {
+      var value = String(text || "");
+      if (!value) return;
+      var restore = function () {
+        var prev = btn.textContent;
+        btn.textContent = "Copied";
+        btn.disabled = true;
+        setTimeout(function () {
+          btn.textContent = prev;
+          btn.disabled = false;
+        }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value).then(restore).catch(function () {
+          var ta = document.createElement("textarea");
+          ta.value = value;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand("copy");
+            restore();
+          } catch (e) {
+            setError("Could not copy to clipboard.");
+          }
+          ta.remove();
+        });
+        return;
+      }
+      var ta = document.createElement("textarea");
+      ta.value = value;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        restore();
+      } catch (e) {
+        setError("Could not copy to clipboard.");
+      }
+      ta.remove();
+    }
+
+    function appendSigningCopyRow(parent, label, value, copyValue) {
+      var row = document.createElement("div");
+      row.className = "signing-info-row";
+      var lbl = document.createElement("span");
+      lbl.className = "signing-info-label";
+      lbl.textContent = label;
+      var val = document.createElement("code");
+      val.className = "signing-info-value";
+      val.textContent = value;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-sm";
+      btn.textContent = "Copy";
+      btn.addEventListener("click", function () {
+        copyTextToClipboard(copyValue != null ? copyValue : value, btn);
+      });
+      row.appendChild(lbl);
+      row.appendChild(val);
+      row.appendChild(btn);
+      parent.appendChild(row);
+    }
+
+    function appendDownloadBlock(out, j) {
+      if (!j.download_path || typeof j.download_path !== "string") return;
+      var block = document.createElement("div");
+      block.className = "download-block";
+      var a = document.createElement("a");
+      var dlBase = __API_BASE__ || window.location.origin;
+      var dlUrl = String(new URL(j.download_path, dlBase));
+      var dlName = j.artifact || "artifact.apk";
+      a.href = dlUrl;
+      a.className = "download-link";
+      a.textContent = "Download " + dlName;
+      a.rel = "noopener noreferrer";
+      a.download = dlName;
+      a.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        a.setAttribute("aria-busy", "true");
+        var prev = a.textContent;
+        a.textContent = "Preparing download…";
+        fetch(dlUrl, { credentials: "same-origin", cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("Download failed (HTTP " + r.status + ")");
+            return r.blob();
+          })
+          .then(function (blob) {
+            var obj = URL.createObjectURL(blob);
+            var tmp = document.createElement("a");
+            tmp.href = obj;
+            tmp.download = dlName;
+            document.body.appendChild(tmp);
+            tmp.click();
+            tmp.remove();
+            setTimeout(function () { URL.revokeObjectURL(obj); }, 2000);
+          })
+          .catch(function (err) {
+            setError(String(err && err.message ? err.message : err));
+            window.location.assign(dlUrl);
+          })
+          .finally(function () {
+            a.textContent = prev;
+            a.removeAttribute("aria-busy");
+          });
+      });
+      block.appendChild(a);
+
+      var cert = j.signing_certificate && typeof j.signing_certificate === "object"
+        ? j.signing_certificate
+        : null;
+      var profileLabel =
+        typeof j.signing_profile === "string" && j.signing_profile.trim()
+          ? j.signing_profile.trim()
+          : buildVariant.value === "release"
+            ? signatureDisplayForId(getBuildSigningProfileId())
+            : "Debug";
+      var copyAll =
+        typeof j.signing_copy_text === "string" && j.signing_copy_text.trim()
+          ? j.signing_copy_text.trim()
+          : profileLabel;
+
+      if (profileLabel || (cert && cert.sha256)) {
+        var sig = document.createElement("div");
+        sig.className = "signing-info";
+        var title = document.createElement("div");
+        title.className = "signing-info-title";
+        title.textContent = "Signing";
+        sig.appendChild(title);
+        if (profileLabel) {
+          appendSigningCopyRow(sig, "Signature", profileLabel, copyAll);
+        }
+        if (cert && cert.sha256) {
+          appendSigningCopyRow(sig, "SHA-256", cert.sha256, cert.sha256);
+        }
+        var actions = document.createElement("div");
+        actions.className = "signing-info-actions";
+        var copyAllBtn = document.createElement("button");
+        copyAllBtn.type = "button";
+        copyAllBtn.className = "btn btn-sm";
+        copyAllBtn.textContent = "Copy all";
+        copyAllBtn.addEventListener("click", function () {
+          copyTextToClipboard(copyAll, copyAllBtn);
+        });
+        actions.appendChild(copyAllBtn);
+        sig.appendChild(actions);
+        block.appendChild(sig);
+      }
+
+      out.appendChild(block);
+      if (window.location.protocol === "http:") {
+        var pHttp = document.createElement("p");
+        pHttp.className = "note";
+        pHttp.style.marginTop = "0.5rem";
+        pHttp.textContent =
+          "Tip: if the browser still blocks the file, click Keep, or serve APK Forge over HTTPS (see deploy/Caddyfile).";
+        out.appendChild(pHttp);
+      }
+    }
+
+    function isProfileConfiguredInCache(id) {
+      var list = signingProfilesCache.profiles || [];
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id === id) return list[i].configured === true;
+      }
+      return false;
+    }
+
+    function firstConfiguredSignatureId() {
+      for (var n = 1; n <= BUILTIN_SIGNATURE_COUNT; n++) {
+        var id = "signature_" + n;
+        if (isProfileConfiguredInCache(id)) return id;
+      }
+      return "signature_1";
+    }
+
+    function fillBuiltinSignatureSelect(sel, selectedId, opts) {
+      if (!sel) return;
+      var forBuild = !!(opts && opts.forBuild);
+      sel.innerHTML = "";
+      for (var n = 1; n <= BUILTIN_SIGNATURE_COUNT; n++) {
+        var id = "signature_" + n;
+        var configured = isProfileConfiguredInCache(id);
+        var opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent =
+          signatureDisplayName(n - 1) + (configured ? "" : " (not configured)");
+        if (forBuild && !configured) opt.disabled = true;
+        sel.appendChild(opt);
+      }
+      var pick =
+        selectedId && signatureNumberFromId(selectedId) > 0
+          ? selectedId
+          : "signature_1";
+      sel.value = pick;
+      if (forBuild && sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].disabled) {
+        sel.value = firstConfiguredSignatureId();
+      }
+    }
+
+    function populateSigningProfileDropdowns(store) {
+      signingProfilesCache = store || { default_profile_id: "signature_1", profiles: [] };
+      var active =
+        (store && store.default_profile_id) ||
+        getSelectedSigningProfileId() ||
+        "signature_1";
+      if (signatureNumberFromId(active) <= 0) {
+        active = "signature_1";
+      }
+      fillBuiltinSignatureSelect(signingProfileSelect, active, { forBuild: false });
+      fillBuiltinSignatureSelect(
+        buildSigningProfile,
+        getBuildSigningProfileId() || active,
+        { forBuild: true },
+      );
+    }
+
+    function profileModeToUi(mode) {
+      if (mode === "custom_base64") {
+        setSigningModeRadiosFromValue("custom");
+      } else {
+        setSigningModeRadiosFromValue("default");
+        if (signingDefaultCredentialSource) {
+          signingDefaultCredentialSource.value =
+            mode === "android_base64" ? "android" : "release";
+        }
+      }
+      syncSigningUi();
+    }
+
+    function uiModeFromForm() {
+      if (getSigningModeValue() === "custom") return "custom_base64";
+      return getDefaultCredentialSource() === "android"
+        ? "android_base64"
+        : "release_file";
+    }
+
+    function applySigningProfileToForm(profile) {
+      if (!profile) return;
+      if (signingProfileIdInput) signingProfileIdInput.value = profile.id || "";
+      if (signingProfileLabelInput) {
+        var n = signatureNumberFromId(profile.id || "");
+        signingProfileLabelInput.value = n > 0 ? signatureDisplayName(n - 1) : profile.label || "";
+      }
+      applySigningValuesToForm(profile);
+      profileModeToUi(profile.mode || uiModeFromForm());
+    }
+
+    async function fetchSigningProfilesList() {
+      var r = await fetch(apiUrl("/api/signing-profiles"));
+      var j = await r.json().catch(function () { return {}; });
+      return { r: r, j: j };
+    }
+
+    async function loadSigningProfileById(id) {
+      if (!id) return;
+      var r = await fetch(apiUrl("/api/signing-profiles/" + encodeURIComponent(id)));
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        throw new Error(j.error || ("HTTP " + r.status));
+      }
+      applySigningProfileToForm(j.profile);
+    }
+
+    async function refreshSigningProfilesAndLoadActive(preferredId) {
+      var res = await fetchSigningProfilesList();
+      if (res.r.ok) {
+        populateSigningProfileDropdowns(res.j);
+      } else {
+        populateSigningProfileDropdowns(null);
+        setSigningMsg(
+          (res.j.error || "Could not load signing profiles (HTTP " + res.r.status + ").") +
+            " Using built-in Signature 1–5; restart the server after deploy if this persists.",
+          true,
+        );
+      }
+      var id =
+        preferredId ||
+        getSelectedSigningProfileId() ||
+        (res.r.ok && res.j.default_profile_id) ||
+        "signature_1";
+      if (signatureNumberFromId(id) <= 0) {
+        id = "signature_1";
+      }
+      if (signingProfileSelect) signingProfileSelect.value = id;
+      if (buildSigningProfile && !buildSigningProfile.value) {
+        buildSigningProfile.value = id;
+      }
+      try {
+        await loadSigningProfileById(id);
+      } catch (e) {
+        if (res.r.ok) {
+          setSigningMsg(String(e && e.message ? e.message : e), true);
+        }
+      }
+    }
 
     function getSigningModeValue() {
       var c = document.querySelector('input[name="signing_mode"]:checked');
@@ -1012,21 +1461,28 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     }
 
     function readSigningPayloadFromForm() {
-      var o = {};
+      var id = getSelectedSigningProfileId();
+      if (!id) id = "signature_1";
+      var n = signatureNumberFromId(id);
+      var label = n > 0 ? signatureDisplayName(n - 1) : id;
+      var o = {
+        id: id,
+        label: label,
+        mode: uiModeFromForm(),
+        set_default: true,
+      };
       function add(ids) {
-        ids.forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el) o[id] = el.value;
+        ids.forEach(function (fid) {
+          var el = document.getElementById(fid);
+          if (el) o[fid] = el.value;
         });
       }
-      if (getSigningModeValue() === "custom") {
+      if (o.mode === "custom_base64") {
         add(CUSTOM_SIGNING_FORM_IDS);
+      } else if (o.mode === "android_base64") {
+        add(ANDROID_SIGNING_FORM_IDS);
       } else {
-        if (getDefaultCredentialSource() === "android") {
-          add(ANDROID_SIGNING_FORM_IDS);
-        } else {
-          add(RELEASE_SIGNING_FORM_IDS);
-        }
+        add(RELEASE_SIGNING_FORM_IDS);
       }
       return o;
     }
@@ -1067,13 +1523,8 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       setSigningMsg("", false);
       loadSigningBtn.disabled = true;
       try {
-        var res = await fetchSigningConfigResponse();
-        if (!res.r.ok) {
-          setSigningMsg(res.j.error || ("HTTP " + res.r.status), true);
-          return;
-        }
-        applySigningLoadedJson(res.j);
-        setSigningMsg("Loaded from server .env.", false);
+        await refreshSigningProfilesAndLoadActive(getSelectedSigningProfileId());
+        setSigningMsg("Profile loaded.", false);
       } catch (e) {
         setSigningMsg(String(e && e.message ? e.message : e), true);
       } finally {
@@ -1099,7 +1550,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
         if (signingSaveConfiguredOnServer && tok) {
           headers["Authorization"] = "Bearer " + tok;
         }
-        var r = await fetch(apiUrl("/api/signing-config"), {
+        var r = await fetch(apiUrl("/api/signing-profiles"), {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(readSigningPayloadFromForm()),
@@ -1122,12 +1573,9 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
           setSigningMsg(j.error || ("HTTP " + r.status), true);
           return;
         }
-        setSigningMsg(j.message || "Saved.", false);
+        setSigningMsg(j.message || "Profile saved.", false);
         try {
-          var res2 = await fetchSigningConfigResponse();
-          if (res2.r.ok) {
-            applySigningLoadedJson(res2.j);
-          }
+          await refreshSigningProfilesAndLoadActive(j.profile_id || getSelectedSigningProfileId());
         } catch (e3) { /* ignore */ }
       } catch (e) {
         setSigningMsg(String(e && e.message ? e.message : e), true);
@@ -1172,6 +1620,11 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       var debug = buildVariant.value === "debug";
       var useCustom = getSigningModeValue() === "custom";
       var src = getDefaultCredentialSource();
+      if (buildSigningProfileField) {
+        buildSigningProfileField.classList.toggle("hidden", debug);
+        buildSigningProfileField.setAttribute("aria-hidden", debug ? "true" : "false");
+      }
+      if (buildSigningProfile) buildSigningProfile.disabled = debug;
       if (signingModeDefault) signingModeDefault.disabled = debug;
       if (signingModeCustom) signingModeCustom.disabled = debug;
       signingSection.classList.toggle("is-muted", debug);
@@ -1208,6 +1661,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
         var el = document.getElementById(id);
         if (el) el.disabled = debug || !useCustom;
       });
+      if (signingProfileSelect) signingProfileSelect.disabled = debug;
       loadSigningBtn.disabled = debug;
       syncSaveSigningButton();
     }
@@ -1230,6 +1684,47 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       } catch (e) { /* ignore */ }
     }
     syncSigningUi();
+
+    if (signingProfileSelect) {
+      signingProfileSelect.addEventListener("change", async function () {
+        setSigningMsg("", false);
+        try {
+          await loadSigningProfileById(signingProfileSelect.value);
+          if (buildSigningProfile) {
+            buildSigningProfile.value = signingProfileSelect.value;
+            if (
+              buildSigningProfile.options[buildSigningProfile.selectedIndex] &&
+              buildSigningProfile.options[buildSigningProfile.selectedIndex].disabled
+            ) {
+              buildSigningProfile.value = firstConfiguredSignatureId();
+            }
+          }
+        } catch (e) {
+          setSigningMsg(String(e && e.message ? e.message : e), true);
+        }
+      });
+    }
+
+    if (buildSigningProfile) {
+      buildSigningProfile.addEventListener("change", async function () {
+        if (
+          buildSigningProfile.options[buildSigningProfile.selectedIndex] &&
+          buildSigningProfile.options[buildSigningProfile.selectedIndex].disabled
+        ) {
+          buildSigningProfile.value = firstConfiguredSignatureId();
+          return;
+        }
+        setSigningMsg("", false);
+        try {
+          if (signingProfileSelect) {
+            signingProfileSelect.value = buildSigningProfile.value;
+          }
+          await loadSigningProfileById(buildSigningProfile.value);
+        } catch (e) {
+          setSigningMsg(String(e && e.message ? e.message : e), true);
+        }
+      });
+    }
 
     async function loadConfigFromProject() {
       setConfigMsg("", false);
@@ -1616,9 +2111,18 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
       var body = Object.assign(readAppFieldsPayload(), {
         build_variant: buildVariant.value,
         artifact_type: document.getElementById("artifact_type").value,
-        signing_mode: getSigningModeValue(),
         client_build_id: clientBuildId,
       });
+      if (buildVariant.value === "release") {
+        body.signing_profile_id = getBuildSigningProfileId();
+        if (!isProfileConfiguredInCache(body.signing_profile_id)) {
+          setError(
+            signatureDisplayForId(body.signing_profile_id) +
+              " is not configured. In the Signing sidebar, select that signature, enter keystore path and passwords, then click Save profile.",
+          );
+          return;
+        }
+      }
       go.disabled = true;
       showBuildProgress(true);
       startBuildQueuePoll(clientBuildId);
@@ -1657,59 +2161,7 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
               " other build(s); Gradle runs one at a time on this server.";
             out.appendChild(pQueue);
           }
-          if (j.download_path && typeof j.download_path === "string") {
-            var br = document.createElement("br");
-            out.appendChild(br);
-            var a = document.createElement("a");
-            var dlBase = __API_BASE__ || window.location.origin;
-            var dlUrl = String(new URL(j.download_path, dlBase));
-            var dlName = j.artifact || "artifact.apk";
-            a.href = dlUrl;
-            a.textContent = "Download " + dlName;
-            a.rel = "noopener noreferrer";
-            a.download = dlName;
-            a.style.color = "var(--accent)";
-            a.style.fontWeight = "600";
-            a.addEventListener("click", function (ev) {
-              // Fetch + blob avoids Chrome "Insecure download blocked" for .apk over plain HTTP.
-              ev.preventDefault();
-              a.setAttribute("aria-busy", "true");
-              var prev = a.textContent;
-              a.textContent = "Preparing download…";
-              fetch(dlUrl, { credentials: "same-origin", cache: "no-store" })
-                .then(function (r) {
-                  if (!r.ok) throw new Error("Download failed (HTTP " + r.status + ")");
-                  return r.blob();
-                })
-                .then(function (blob) {
-                  var obj = URL.createObjectURL(blob);
-                  var tmp = document.createElement("a");
-                  tmp.href = obj;
-                  tmp.download = dlName;
-                  document.body.appendChild(tmp);
-                  tmp.click();
-                  tmp.remove();
-                  setTimeout(function () { URL.revokeObjectURL(obj); }, 2000);
-                })
-                .catch(function (err) {
-                  setError(String(err && err.message ? err.message : err));
-                  window.location.assign(dlUrl);
-                })
-                .finally(function () {
-                  a.textContent = prev;
-                  a.removeAttribute("aria-busy");
-                });
-            });
-            out.appendChild(a);
-            if (window.location.protocol === "http:") {
-              var pHttp = document.createElement("p");
-              pHttp.className = "note";
-              pHttp.style.marginTop = "0.5rem";
-              pHttp.textContent =
-                "Tip: if the browser still blocks the file, click Keep, or serve APK Forge over HTTPS (see deploy/Caddyfile).";
-              out.appendChild(pHttp);
-            }
-          }
+          appendDownloadBlock(out, j);
         }
       } catch (e) {
         setError(String(e && e.message ? e.message : e));
@@ -1724,7 +2176,8 @@ export function buildHtmlPage(options?: BuildHtmlPageOptions): string {
     refreshSigningSaveGate().then(function () {
       syncSigningUi();
     });
-    loadSigningFromEnv();
+    populateSigningProfileDropdowns(null);
+    refreshSigningProfilesAndLoadActive("signature_1");
     loadConfigFromProject();
   </script>
 </body>

@@ -1,5 +1,17 @@
 # APK Forge changelist
 
+## 1.5.0 — 2026-09-01
+- Named signing profiles stored in `signing.profiles.json` (gitignored on server)
+- Five fixed built-in slots: **Signature 1** … **Signature 5** (no add/delete)
+- All five slots prefilled with distinct committed QA keystores under `app/signing/` (`template-release.jks`, `signature-2.jks` … `signature-5.jks`)
+- Bootstrap: first run and empty built-in slots seed from QA defaults; Signature 1 still prefers merged `.env` + `signing.defaults.env`
+- Release build dropdown to pick which profile signs the APK/AAB; unconfigured slots show “(not configured)” and are disabled until saved
+- Sidebar profile editor: select slot, edit credentials, reload, save (optional editor auth)
+- Build dropdown stays in sync with the sidebar profile selection
+- Post-build download card shows signing profile + certificate SHA-256 with **Copy** / **Copy all** (via `keytool -printcert`)
+- API: `GET/PUT/DELETE /api/signing-profiles`; build body `signing_profile_id`; build response includes `signing_profile`, `signing_certificate`, `signing_copy_text`
+- Clear validation when a slot has no keystore configured (client + server)
+
 ## 1.4.0 — 2026-08-31
 - In-app file explorer (folder browse, Photos/Downloads, open/share/copy URI)
 - Profile label (Personal vs Work) on QA screen and file explorer

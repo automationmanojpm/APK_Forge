@@ -3,6 +3,8 @@
 export const APPLICATION_ID_RE =
   /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/;
 
+export const SIGNING_PROFILE_ID_RE = /^[a-z0-9_-]{1,32}$/;
+
 /** Validates app.* fields used for builds and for saving gradle.properties. */
 export function validateAppProperties(raw: unknown):
   | {
@@ -93,17 +95,36 @@ export function validateBody(raw: unknown):
     typeof o.artifact_type === "string" ? o.artifact_type.trim() : "";
   const signing_mode =
     typeof o.signing_mode === "string" ? o.signing_mode.trim() : "";
+  const signing_profile_id =
+    typeof o.signing_profile_id === "string" ? o.signing_profile_id.trim() : "";
   const build_variant =
     typeof o.build_variant === "string" ? o.build_variant.trim() : "";
 
   if (artifact_type !== "apk" && artifact_type !== "aab") {
     return { ok: false, error: "artifact_type must be apk or aab" };
   }
-  if (signing_mode !== "default" && signing_mode !== "custom") {
-    return { ok: false, error: "signing_mode must be default or custom" };
-  }
   if (build_variant !== "release" && build_variant !== "debug") {
     return { ok: false, error: "build_variant must be release or debug" };
+  }
+  if (signing_profile_id && !SIGNING_PROFILE_ID_RE.test(signing_profile_id)) {
+    return {
+      ok: false,
+      error:
+        "signing_profile_id must be 1–32 chars: lowercase letters, digits, _ or -",
+    };
+  }
+  if (build_variant === "release") {
+    if (!signing_profile_id) {
+      if (signing_mode !== "default" && signing_mode !== "custom") {
+        return {
+          ok: false,
+          error:
+            "Release builds require signing_profile_id, or legacy signing_mode default/custom",
+        };
+      }
+    }
+  } else if (signing_mode && signing_mode !== "default" && signing_mode !== "custom") {
+    return { ok: false, error: "signing_mode must be default or custom" };
   }
 
   const client_build_id =
@@ -133,8 +154,9 @@ export function validateBody(raw: unknown):
       version_name: app.version_name,
       apk_forge_endpoint: app.apk_forge_endpoint,
       artifact_type,
-      signing_mode,
       build_variant,
+      ...(signing_profile_id ? { signing_profile_id } : {}),
+      ...(signing_mode ? { signing_mode } : { signing_mode: "default" }),
       ...(icon_token_raw ? { icon_token: icon_token_raw } : {}),
     },
     client_build_id,

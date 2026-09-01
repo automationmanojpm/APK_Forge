@@ -26,6 +26,14 @@ import {
   writeSigningEnvKeys,
 } from "./signingEnv.js";
 import {
+  deleteSigningProfile,
+  getSigningProfileById,
+  listSigningProfiles,
+  summarizeProfiles,
+  upsertSigningProfile,
+  validateSigningProfileBody,
+} from "./signingProfiles.js";
+import {
   isSigningEditorConfigured,
   issueSigningSaveToken,
   parseBearerToken,
@@ -38,6 +46,7 @@ import { storeBuildIcon } from "./buildIcon.js";
 const serverDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = path.join(serverDir, ".env");
 const signingDefaultsPath = path.join(serverDir, "signing.defaults.env");
+const signingProfilesPath = path.join(serverDir, "signing.profiles.json");
 loadDotEnv({ path: envPath, quiet: true });
 
 const bootSigningCfg = await readSigningEnvFile(envPath, signingDefaultsPath);
@@ -101,7 +110,7 @@ if (apkForgeCorsOrigins.length > 0) {
         if (!origin) return undefined;
         return apkForgeCorsOrigins.includes(origin) ? origin : undefined;
       },
-      allowMethods: ["GET", "HEAD", "POST", "PUT", "OPTIONS"],
+      allowMethods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
       allowHeaders: ["Authorization", "Content-Type"],
       maxAge: 86400,
     }),
@@ -139,6 +148,114 @@ app.get("/api/signing-config", async () => {
   const cfg = await readSigningEnvFile(envPath, signingDefaultsPath);
   applySigningToProcessEnv(cfg);
   return json(cfg);
+});
+
+app.get("/api/signing-profiles", async () => {
+  const store = await listSigningProfiles(
+    signingProfilesPath,
+    envPath,
+    signingDefaultsPath,
+    env.ANDROID_PROJECT_ROOT,
+  );
+  return json({ ok: true, ...summarizeProfiles(store) });
+});
+
+app.get("/api/signing-profiles/:id", async (c) => {
+  const id = (c.req.param("id") ?? "").trim();
+  if (!id) {
+    return json({ error: "Profile id is required" }, 400);
+  }
+  const store = await listSigningProfiles(
+    signingProfilesPath,
+    envPath,
+    signingDefaultsPath,
+    env.ANDROID_PROJECT_ROOT,
+  );
+  const profile = getSigningProfileById(store, id);
+  if (!profile) {
+    return json({ error: "Signing profile not found" }, 404);
+  }
+  return json({ ok: true, profile });
+});
+
+app.put("/api/signing-profiles", async (c) => {
+  if (isSigningEditorConfigured()) {
+    const token = parseBearerToken(c.req.header("authorization"));
+    if (!verifySigningSaveToken(token)) {
+      return json(
+        {
+          error:
+            "Unauthorized. Use Save again and sign in through the dialog (editor email and password).",
+        },
+        401,
+      );
+    }
+  }
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+  const validated = await validateSigningProfileBody(
+    body,
+    env.ANDROID_PROJECT_ROOT,
+  );
+  if (!validated.ok) {
+    return json({ error: validated.error }, 400);
+  }
+  try {
+    await upsertSigningProfile(
+      signingProfilesPath,
+      envPath,
+      signingDefaultsPath,
+      env.ANDROID_PROJECT_ROOT,
+      validated.profile,
+      validated.setDefault,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return json({ error: `Could not write signing profiles: ${msg}` }, 500);
+  }
+  return json({
+    ok: true,
+    message: "Signing profile saved.",
+    profile_id: validated.profile.id,
+  });
+});
+
+app.delete("/api/signing-profiles/:id", async (c) => {
+  if (isSigningEditorConfigured()) {
+    const token = parseBearerToken(c.req.header("authorization"));
+    if (!verifySigningSaveToken(token)) {
+      return json(
+        {
+          error:
+            "Unauthorized. Sign in from the Save dialog (same editor account as signing .env).",
+        },
+        401,
+      );
+    }
+  }
+  const id = (c.req.param("id") ?? "").trim();
+  if (!id) {
+    return json({ error: "Profile id is required" }, 400);
+  }
+  const result = await deleteSigningProfile(
+    signingProfilesPath,
+    envPath,
+    signingDefaultsPath,
+    env.ANDROID_PROJECT_ROOT,
+    id,
+  );
+  if ("error" in result) {
+    return json({ error: result.error }, 400);
+  }
+  return json({
+    ok: true,
+    message: "Signing profile deleted.",
+    ...summarizeProfiles(result),
+  });
 });
 
 app.get("/api/signing-auth/status", (c) => {
@@ -352,6 +469,7 @@ app.post("/api/build", async (c) => {
         inputs: validated.inputs,
         signingEnvPath: envPath,
         signingDefaultsPath,
+        signingProfilesPath,
       }),
   );
   if (waitedBehind > 0) {
@@ -377,6 +495,18 @@ app.post("/api/build", async (c) => {
       "Build finished. Download the artifact from the link below (same host).",
     download_path: result.relativeDownloadPath,
     artifact: result.artifactName,
+    ...(result.signingProfileId
+      ? { signing_profile_id: result.signingProfileId }
+      : {}),
+    ...(result.signingProfileLabel
+      ? { signing_profile: result.signingProfileLabel }
+      : {}),
+    ...(result.signingCertificate
+      ? { signing_certificate: result.signingCertificate }
+      : {}),
+    ...(result.signingCopyText
+      ? { signing_copy_text: result.signingCopyText }
+      : {}),
     client_build_id: validated.client_build_id,
     queue: {
       waited_behind: waitedBehind,
